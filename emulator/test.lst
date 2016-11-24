@@ -1,0 +1,64 @@
+ AS V1.42 Beta [Bld 114] - source file test.asm - page 1 - 1/11/2016 16:43:24
+
+
+       1/       0 :                     
+       2/       0 :                     	cpu 	1802
+       3/       0 :                     	
+       4/       0 : =0H                 r0 = 0
+       5/       0 : =1H                 r1 = 1
+       6/       0 : =2H                 r2 = 2
+       7/       0 : =3H                 r3 = 3
+       8/       0 : =4H                 r4 = 4
+       9/       0 : =5H                 r5 = 5
+      10/       0 :                     
+      11/       0 : 71                  	dis
+      12/       1 :                     ShowIt:
+      13/       1 : F8 80               	ldi 	080h
+      14/       3 : A3                  	plo 	r3
+      15/       4 : E3                  	sex 	r3
+      16/       5 : 6C                  	inp 	4
+      17/       6 : 64                  	out 	4
+      18/       7 : 30 01               	br 		ShowIt
+ AS V1.42 Beta [Bld 114] - source file test.asm - page 2 - 1/11/2016 16:43:24
+
+
+  symbol table (* = unused):
+  ------------------------
+
+*ARCHITECTURE :                                        x86_64-unknown-linux - |
+*BIGENDIAN :                      0 - | *BRANCHEXT :                      0 - |
+*CASESENSITIVE :                  0 - | *CONSTPI :        3.141592653589793 - |
+*DATE :                   1/11/2016 - | *FALSE :                          0 - |
+*FULLPMMU :                       1 - | *HAS64 :                          1 - |
+*HASDSP :                         0 - | *HASFPU :                         0 - |
+*HASPMMU :                        0 - | *INEXTMODE :                      0 - |
+*INLWORDMODE :                    0 - | *INMAXMODE :                      0 - |
+*INSRCMODE :                      0 - | *INSUPMODE :                      0 - |
+*LISTON :                         1 - | *MACEXP :                         1 - |
+*MOMCPU :                      1802 - | *MOMCPUNAME :                  1802 - |
+*NESTMAX :                      100 - | *PACKING :                        0 - |
+*PADDING :                        1 - | *R0 :                             0 - |
+*R1 :                             1 - | *R2 :                             2 - |
+ R3 :                             3 - | *R4 :                             4 - |
+*R5 :                             5 - | *RELAXED :                        0 - |
+ SHOWIT :                         1 C | *TIME :                    16:43:24 - |
+*TRUE :                           1 - | *VERSION :                     142F - |
+
+     35 symbols
+     33 unused symbols
+
+ AS V1.42 Beta [Bld 114] - source file test.asm - page 3 - 1/11/2016 16:43:24
+
+
+  codepages:
+  ----------
+
+STANDARD (0 changed characters)
+
+
+0.00 seconds assembly time
+
+     18 lines source file
+      1 pass
+      0 errors
+      0 warnings
