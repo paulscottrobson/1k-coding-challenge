@@ -1,0 +1,139 @@
+// ******************************************************************************************
+// ******************************************************************************************
+//
+//										8008 CPU Definition
+//
+// ******************************************************************************************
+// ******************************************************************************************
+//
+//	@C 	NC,NZ,P,PO,C,Z,M,PE 	opcode / step mod 8
+//	@P 	Port Number Hex 		opcode / 2 mod 32
+//	@R 	ABCDEHLM 				opcode / step mod 8
+//	@T 	Code to test @C			opcode / step mod 8
+//	@X 	Reset address Hex 		opcode / step mod 8 * 8
+//
+// ******************************************************************************************
+//												Macros
+// ******************************************************************************************
+
+:static BYTE8 					A,B,C,D,E,H,L,MB,PCIX,Carry,pszValue,Halt;
+:static WORD16 					PC[8],MA,Cycles,temp16;
+
+:#define MAHL()					{ MA = ((WORD16)(H << 8))|L; }
+:#define FETCH() 				{ MB = PC[PCIX];PC[PCIX] = (PC[PCIX]+1) & 0x3FFF;READ(); }
+
+// ******************************************************************************************
+//								  Index Register Instructions
+// ******************************************************************************************
+
+C0-C6 	5 	"mov a,@R" 			A = @R 											// Reg-Reg transfers
+C8-CE 	5 	"mov b,@R" 			B = @R 
+D0-D6 	5 	"mov c,@R" 			C = @R 
+D8-DE 	5 	"mov d,@R" 			D = @R 
+E0-E6 	5 	"mov e,@R" 			E = @R 
+E8-EE 	5 	"mov h,@R" 			H = @R 
+F0-F6 	5 	"mov l,@R" 			L = @R 
+
+C7-F7,8 8 	"mov @R,m"			MAHL();READ();@R = MB 							// Read memory to register
+F8-FE 	7 	"mov m,@R"			MB=@R;MAHL();WRITE();							// Write register to memory.
+
+06-36,8 8 	"mvi @R,$1"			FETCH();@R = MB									// Load reg immediate
+3E 		9 	"mvi m,$1"			FETCH();MAHL();WRITE() 							// Load mem immediate
+
+08-30,8 5 	"inr @R"			@R = pszValue = (@R+1) & 255					// Inc register
+09-31,8 5 	"dcr @R"			@R = pszValue = (@R-1) & 255					// Dec register
+
+// ******************************************************************************************
+//									Accumulator Group Instructions
+// ******************************************************************************************
+
+:#define ADD(a,b) 		temp16 = A+(a)+(b);pszValue = temp16;Carry = (temp16 >> 8) & 1
+:#define SUB(a,b) 		temp16 = A-(a)-(b);pszValue = temp16;Carry = (temp16 >> 8) & 1
+
+80-86 	5 	"add @R"			ADD(@R,0);A = pszValue							// Add
+87 		8 	"add m"				MAHL();READ();ADD(MB,0);A = pszValue
+04 		8 	"adi $1"			FETCH();ADD(MB,0);A = pszValue
+
+88-8E 	5 	"adc @R"			ADD(@R,Carry);A = pszValue						// Add carry in
+8F 		8 	"adc m"				MAHL();READ();ADD(MB,Carry);A = pszValue
+0C 		8 	"aci $1"			FETCH();ADD(MB,Carry);A = pszValue
+
+90-96 	5 	"sub @R"			SUB(@R,0);A = pszValue							// Subtract
+97 		8 	"sub m"				MAHL();READ();SUB(MB,0);A = pszValue
+14 		8 	"sui $1"			FETCH();SUB(MB,0);A = pszValue
+
+98-9E 	5 	"sbb @R"			SUB(@R,Carry);A = pszValue						// Subtract borrow in
+9F 		8 	"sbb m"				MAHL();READ();SUB(MB,Carry);A = pszValue
+1C 		8 	"sbi $1"			FETCH();SUB(MB,Carry);A = pszValue
+
+A0-A6 	5 	"ana @R"			A = pszValue = A & @R;Carry = 0;				// And
+A7 		8 	"ana m"				MAHL();READ();A = pszValue = A & MB;Carry = 0;
+24 		8 	"ani $1"			FETCH();A = pszValue = A & MB;Carry = 0;
+
+A8-AE 	5 	"xra @R"			A = pszValue = A ^ @R;Carry = 0;				// Exclusive Or
+AF 		8 	"xra m"				MAHL();READ();A = pszValue = A ^ MB;Carry = 0;
+2C 		8 	"xri $1"			FETCH();A = pszValue = A ^ MB;Carry = 0;
+
+B0-B6 	5 	"ora @R"			A = pszValue = A | @R;Carry = 0;				// Logical Or
+B7 		8 	"ora m"				MAHL();READ();A = pszValue = A | MB;Carry = 0;
+34 		8 	"ori $1"			FETCH();A = pszValue = A | MB;Carry = 0;
+
+B8-BE 	5 	"cmp @R"			SUB(@R,0)										// Compare
+BF 		8 	"cmp m"				MAHL();READ();SUB(MB,0)
+3C 		8 	"cpi $1"			FETCH();SUB(MB,0)
+
+02 		5 	"rlc"				Carry = (A >> 7) & 1;A = ((A << 1) & 0xFE) | Carry
+0A 		5 	"rrc"				Carry = A & 1;A = ((A >> 1) & 0x7F) | (Carry << 7)
+
+12 		5 	"ral"				temp16 = (A << 1) | Carry;A = temp16;Carry = temp16 >> 8
+1A 		5 	"rar"				temp16 = A | (Carry << 8);A = temp16 >> 1;Carry = temp16 & 1
+
+// ******************************************************************************************
+//					Program Counter and Stack Control Instructions
+// ******************************************************************************************
+
+:#define FETCH16() 		{ FETCH();temp16 = MB;FETCH();temp16 |= (MB << 8); }
+:#define BRANCH() 		{ PCTR[PCIX] = temp16 & 0x3FFF; }
+:#define CALL() 		{ PCIX = (PCIX+1) & 7;BRANCH(); }
+:#define RETURN() 		{ PCIX = (PCIX-1) & 7; }
+
+44-7C,8 11 	"jmp $2"			FETCH16();BRANCH();
+40-78,8 10	"j@C $2"			FETCH16();if (@T) { BRANCH(); }
+
+46-7E,8 11 	"call $2"			FETCH16();CALL();
+42-7A,8 10	"c@C $2"			FETCH16();if (@T) { CALL(); }
+
+07-3F,8 5	"ret"				RETURN;
+03-3B,8 4	"r@C"				if (@T) { RETURN(); }
+
+05-3D,8 5	"rst @X"			temp16 = 0x@X;CALL();
+
+// ******************************************************************************************
+//								Input/Output instructions
+// ******************************************************************************************
+
+41-4F,2 8	"in @P"				A = INPORT@P()
+51-7F,2 6	"out @P"			OUTPORT@P(A)
+
+// ******************************************************************************************
+//									Machine instruction
+// ******************************************************************************************
+
+00-01	4 	"hlt"				Halt = 1
+FF		4 	"hlt"				Halt = 1
+
+:static BYTE8 isEvenParity(void) {
+:	BYTE8 n = 0;
+:	BYTE8 v = pszValue;
+:	while (v != 0) {
+:		if ((v & 1) != 0) n++;
+:		v = v >> 1;	
+:	}
+:	return (n & 1) == 0;
+:}
+
+:static void __8008Reset(void) {
+:	for (A = 0;A < 8;A++) PCTR[A] = 0;
+:	A = B = C = D = E = H = L = Carry = pszValue = Halt = PCIX = 0;	
+:	Cycles = 0;
+:}
