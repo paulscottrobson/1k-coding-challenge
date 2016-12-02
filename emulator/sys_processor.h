@@ -12,13 +12,12 @@
 #ifndef _PROCESSOR_H
 #define _PROCESSOR_H
 
-#define MEMORYSIZE	(0x800) 													// RAM allocated.
-#define MEMORYMASK      (0x7FF)
+#define MEMORYSIZE	(65536) 															// RAM allocated.
 
 typedef unsigned short WORD16;														// 8 and 16 bit types.
 typedef unsigned char  BYTE8;
 
-#define DEFAULT_BUS_VALUE (0xFF)													// What's on the bus if it's not memory.
+#define DEFAULT_BUS_VALUE (0x00)													// What's on the bus if it's not memory.
 
 void CPUReset(void);
 BYTE8 CPUExecuteInstruction(void);
@@ -26,9 +25,9 @@ BYTE8 CPUExecuteInstruction(void);
 #ifdef INCLUDE_DEBUGGING_SUPPORT													// Only required for debugging
 
 typedef struct __CPUSTATUS {
-	int d,df,p,x,t,ie,r[16];													// 1802 registers
-	int cycles;															// cycle counter
-	int pc;																// program counter.
+	int d,df,p,x,t,q,ie,r[16];														// 1802 registers
+	int cycles;																		// cycle counter
+	int pc;																			// program counter.
 } CPUSTATUS;
 
 CPUSTATUS *CPUGetStatus(void);

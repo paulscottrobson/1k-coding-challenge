@@ -39,7 +39,7 @@ OBJECTFILES= \
 	${OBJECTDIR}/framework/gfx.o \
 	${OBJECTDIR}/framework/main.o \
 	${OBJECTDIR}/hardware.o \
-	${OBJECTDIR}/sys_debug_cc.o \
+	${OBJECTDIR}/sys_debug_vip.o \
 	${OBJECTDIR}/sys_processor.o
 
 
@@ -87,10 +87,10 @@ ${OBJECTDIR}/hardware.o: hardware.cpp
 	${RM} "$@.d"
 	$(COMPILE.cc) -g -DINCLUDE_DEBUGGING_SUPPORT -I/usr/include/SDL2 -I. -I./framework -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/hardware.o hardware.cpp
 
-${OBJECTDIR}/sys_debug_cc.o: sys_debug_cc.cpp
+${OBJECTDIR}/sys_debug_vip.o: sys_debug_vip.cpp
 	${MKDIR} -p ${OBJECTDIR}
 	${RM} "$@.d"
-	$(COMPILE.cc) -g -DINCLUDE_DEBUGGING_SUPPORT -I/usr/include/SDL2 -I. -I./framework -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/sys_debug_cc.o sys_debug_cc.cpp
+	$(COMPILE.cc) -g -DINCLUDE_DEBUGGING_SUPPORT -I/usr/include/SDL2 -I. -I./framework -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/sys_debug_vip.o sys_debug_vip.cpp
 
 ${OBJECTDIR}/sys_processor.o: sys_processor.cpp
 	${MKDIR} -p ${OBJECTDIR}

@@ -1,0 +1,199 @@
+// *************************************************************************************************
+// *************************************************************************************************
+//
+//										RCA 1802 Definition file
+//										========================
+//
+//	Variables:	(8 bit) :		D,DF,MB,Q,IE,P,X,T
+//				(16 bit):		R0-R15,Cycles,temp16,MA
+//
+//	@F 			Flag number (0-3 => 1-4)
+//	@P 			Port number (1-7, note port 0 bit 0 is Q)
+//	@R 			Register number (0-15 decimal)
+//	@X 			Register number (0-F hexadecimal)
+//
+//	Note: 		READ() and WRITE() can change MA if needed.
+//
+// *************************************************************************************************
+// *************************************************************************************************
+//
+//	CPU Registers and other variables.
+//
+:static BYTE8 	D,DF,MB,Q,IE,P,X,T;
+:static WORD16	R[16],Cycles,temp16,MA;
+//
+//	Reset the 1802 CPU.
+//
+:static void __1802Reset(void) {
+:	Q = 0;IE = 1;X = 0;P = 0;R[0] = 0;											// Register values
+:	DF &= 1;																	// Make DF 1 bit.
+:	OUTPORT0(0);																// Notify Q change.
+:}
+//
+//	Fetch instruction or byte (to MB)
+//
+:#define FETCH() 		MA = R[P]++;READ()
+
+// *************************************************************************************************
+//										Memory Reference
+// *************************************************************************************************
+
+01-0F 	"LDN R@X"		MA = R[@R];READ();D = MB 								// Load via N
+40-4F 	"LDA R@X"		MA = R[@R];READ();D = MB;R[@R]++ 						// Load advance via N
+F0 		"LDX"			MA = R[X];READ();D = MB 								// Load via X
+72 		"LDXA"			MA = R[X];READ();D = MB;R[X]++ 							// Load advance via X
+F8 		"LDI $1"		FETCH();D = MB 											// Load immediate.
+50-5F 	"STR R@X"		MA = R[@R];MB = D;WRITE()								// Store via N
+73 		"STXD"			MA = R[X];MB = D;WRITE();R[X]-- 						// Store via X and dec
+
+// *************************************************************************************************
+//									   Register Operations
+// *************************************************************************************************
+
+10-1F 	"INC R@X"		R[@R]++ 												// Inc reg N
+20-2F 	"DEC R@X"		R[@R]-- 												// Dec reg N
+60 		"IRX"			R[X]++ 													// Inc reg X
+80-8F 	"GLO R@X"		D = R[@R] 												// Get low reg N
+A0-AF 	"PLO R@X"		R[@R] = (R[@R] & 0xFF00) | D 							// Put low reg N
+90-9F 	"GHI R@X"		D = R[@R] >> 8 											// Get high reg N
+B0-BF 	"PHI R@X"		R[@R] = (R[@R] & 0x00FF) | (D << 8)						// Put high reg N
+
+// *************************************************************************************************
+//										Logic Operations
+// *************************************************************************************************
+
+F1 		"OR"			MA = R[X];READ();D |= MB 								// Logical Or
+F9 		"ORI $1"		FETCH();D |= MB 										// Logical Or immediate
+F2 		"AND"			MA = R[X];READ();D &= MB 								// Logical And
+FA 		"ANI $1"		FETCH();D &= MB 										// Logical And immediate
+F3 		"XOR"			MA = R[X];READ();D ^= MB 								// Logical Xor
+FB 		"XRI $1"		FETCH();D ^= MB 										// Logical Xor immediate
+
+F6 		"SHR"			DF = D & 1;D = (D >> 1) & 0x7F 							// Shift right
+76 		"RSHR"			temp16 = D | (DF << 8);DF = D & 1;D = temp16 >> 1 		// Ring Shift Right
+FE 		"SHL"			DF = (D >> 7) & 1;D = D << 1 							// Shift left
+7E 		"RSHL"			temp16 = (D << 1) | DF;D = temp16;DF = temp16 >> 8 		// Ring Shift Left
+
+// *************************************************************************************************
+//										Arithmetic Operations
+// *************************************************************************************************
+
+:#define ADD(c)	temp16 = D + MB + (c);D = temp16;DF = (temp16 >> 8) & 1
+
+F4 		"ADD"			MA = R[X];READ();ADD(0) 								// Add without carry
+FC 		"ADI $1"		FETCH();ADD(0)
+74 		"ADC"			MA = R[X];READ();ADD(DF)								// Add with carry
+7C 		"ADCI $1"		FETCH();ADD(DF)
+
+:#define SUB(a,b,c) temp16 = (a) + ((b)^0xFF) + (c);D = temp16;DF = (temp16 >> 8) & 1
+
+F5 		"SD"			MA = R[X];READ();SUB(MB,D,1)							// Sub without borrow
+FD 		"SDI $1"		FETCH();SUB(MB,D,1)
+75 		"SDB"			MA = R[X];READ();SUB(MB,D,DF)							// Sub with borrow
+7D 		"SDBI $1"		FETCH();SUB(MB,D,DF)
+
+F7 		"SM"			MA = R[X];READ();SUB(D,MB,1)							// SubMem w/out borrow
+FF 		"SMI $1"		FETCH();SUB(D,MB,1)
+77 		"SMB"			MA = R[X];READ();SUB(D,MB,DF)							// SubMem with borrow
+7F 		"SMBI $1"		FETCH();SUB(D,MB,DF)
+
+// *************************************************************************************************
+//									Branch Instructions (Short)
+// *************************************************************************************************
+
+:#define SBRANCH() 		{ R[P] = (R[P] & 0xFF00) | MB; }						// Exec short branch.
+
+30 		"BR $1"			FETCH();SBRANCH();										// Branch
+31 		"BQ $1"			FETCH();if (Q != 0) SBRANCH()							// Branch if Q
+32 		"BZ $1"			FETCH();if (D == 0) SBRANCH()							// Branch if zero
+33 		"BDF $1"		FETCH();if (DF != 0) SBRANCH()							// Branch if DF
+34-37 	"B@F $1"		FETCH();if (EFLAG@F() != 0) SBRANCH()					// Branch if EFlag set
+38 		"SKP"			R[P]++													// Short Skip
+39 		"BNQ $1"		FETCH();if (Q == 0) SBRANCH()							// Branch if Q clear
+3A 		"BNZ $1"		FETCH();if (D != 0) SBRANCH()							// Branch if non zero
+3B 		"BNF $1"		FETCH();if (DF == 0) SBRANCH()							// Branch if DF clear
+3C-3F 	"BN@F $1"		FETCH();if (EFLAG@F() == 0) SBRANCH()					// Branch if EFlag clear
+
+// *************************************************************************************************
+//									Branch Instructions (Long)
+// *************************************************************************************************
+
+																				// Fetch 16 bit address
+:#define FETCH2()		{ FETCH();temp16 = (MB << 8);FETCH();temp16 |= MB; Cycles--; }
+
+:#define LBRANCH() 		{ R[P] = temp16; }										// Execute Long Branch
+
+C0 		"LBR $2"		FETCH2();LBRANCH();										// LBranch
+C1 		"LBQ $2"		FETCH2();if (Q != 0) LBRANCH()							// LBranch if Q
+C2 		"LBZ $2"		FETCH2();if (D == 0) LBRANCH()							// LBranch if zero
+C3 		"LBDF $2"		FETCH2();if (DF != 0) LBRANCH()							// LBranch if DF
+C9 		"LBNQ $2"		FETCH2();if (Q == 0) LBRANCH()							// LBranch if Q clear
+CA 		"LBNZ $2"		FETCH2();if (D != 0) LBRANCH()							// LBranch if non zero
+CB 		"LBNF $2"		FETCH2();if (DF == 0) LBRANCH()							// LBranch if DF clear
+
+// *************************************************************************************************
+//									Skip instructions (Long)
+// *************************************************************************************************
+
+:#define LSKIP() 		{ R[P] = R[P] + 2; }									// Execute long skip
+
+C8 		"LSKP"			Cycles--;LSKIP();										// LSkip
+CD 		"LSQ"			Cycles--;if (Q != 0) LSKIP()							// LSkip if Q
+CE 		"LSZ"			Cycles--;if (D == 0) LSKIP()							// LSkip if zero
+CF 		"LSDF"			Cycles--;if (DF != 0) LSKIP()							// LSkip if DF
+C5 		"LSNQ"			Cycles--;if (Q == 0) LSKIP()							// LSkip if Q clear
+C6 		"LSNZ"			Cycles--;if (D != 0) LSKIP()							// LSkip if non zero
+C7 		"LSNF"			Cycles--;if (DF == 0) LSKIP()							// LSkip if DF clear
+CC 		"LSIE"			Cycles--;if (IE != 0) LSKIP()							// LSkip if IE set
+
+// *************************************************************************************************
+//									Control Instructions
+// *************************************************************************************************
+
+00 		"IDL"			; 														// IDL not implemented
+C4 		"NOP"			Cycles-- 												// No Operation.
+68 		"DB 68"			; 														// $68 does nothing.
+D0-DF 	"SEP R@X"		P = @R 													// Set P (and ptr)
+E0-EF 	"SEX R@X"		X = @R 													// Set X (and ptr)
+7B 		"SEQ"			Q = 1;OUTPORT0(1) 										// Set Q
+7A 		"REQ"			Q = 0;OUTPORT0(0) 	 									// Reset Q
+78 		"SAV"			MA = R[X];MB = T;WRITE();								// Save T to M(R(X))
+79 		"MARK"			__Mark();												// Mark on stack
+70 		"RET"			__Return();IE = 1 										// Return
+71 		"DIS"			__Return();IE = 0 										// Disable
+
+:static void inline __Mark(void) {
+:	T = (X << 4) | P; 															// (X,P)->T
+:	MB = T;MA = R[2];WRITE();													// (X,P)->M(R(2))
+:	X = P; 																		// P -> X and fix up ptr
+:	R[2]--;																		// R(2)-1 -> R(2)	
+:}
+
+																				// Array of pointer
+:static void inline __Return(void) {
+:	MA = R[X];READ(); 															// M(R(X)) read
+:	R[X]++;																		// Post inc of R(X)
+:	X = (MB >> 4);P = (MB & 0x0F);												// Put M(R(X)) -> (X,P)
+:}
+
+// *************************************************************************************************
+//									Input-Output Byte Transfer
+// *************************************************************************************************
+
+61-67 	"OUT @P"	MA = R[X];READ();OUTPORT@P(MB);R[X]++ 						// Out M(R(X)),inc R(X)
+
+69-6F 	"INP @P"	MB = D = INPORT@P();MA = R[X];WRITE();						// In to D and M(R(X))
+
+//	Note Q is port 0.
+
+// *************************************************************************************************
+//									1802 Interrupt Function
+// *************************************************************************************************
+
+:static void __1802Interrupt(void) {
+:	if (IE != 0) {																// If enabled
+:		T = (X << 4) | P;														// P and X in T
+:		P = 1;X = 2;															// P = 1,X = 2
+:		IE = 0;																	// Disable further ints
+:	}	
+:}

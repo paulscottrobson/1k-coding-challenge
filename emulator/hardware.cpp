@@ -3,7 +3,7 @@
 //
 //		Name:		hardware.cpp
 //		Purpose:	Hardware Interface
-//		Created:	24th November 2016
+//		Created:	1st November 2016
 //		Author:		Paul Robson (paul@robsons.org.uk)
 //
 // *******************************************************************************************************************************
@@ -16,15 +16,13 @@
 
 static WORD16 videoMemoryAddress = 0xFFFF;										// 1802 Video Memory Address
 static BYTE8  screenIsOn = 0;													// 1861 turned on
+static BYTE8  *videoMemoryPointer;												// Physical screen memory ptr in SRAM
 
 // *******************************************************************************************************************************
 //													Hardware Reset
 // *******************************************************************************************************************************
 
 void HWIReset(void) {
-    screenIsOn = 1;
-    for (int i = 0;i < 256;i++) CPUWriteMemory(i,0xFF);
-    videoMemoryAddress = 0;
 }
 
 // *******************************************************************************************************************************
@@ -35,30 +33,6 @@ BYTE8 HWIProcessKey(BYTE8 key,BYTE8 isRunMode) {
 	if (isRunMode) {															// In run mode, push 0-9 A-F
 	}
 	return key;
-}
-
-// *******************************************************************************************************************************
-//							Get/Set the page address (1802 and Physical) for the video.
-// *******************************************************************************************************************************
-
-void HWISetPageAddress(WORD16 r0) {
-	videoMemoryAddress = r0;
-}
-
-WORD16 HWIGetPageAddress(void) {
-	return videoMemoryAddress;
-}
-
-// *******************************************************************************************************************************
-//											Get/Set the screen on flag
-// *******************************************************************************************************************************
-
-void HWISetScreenOn(BYTE8 isOn) {
-	screenIsOn = (isOn != 0);
-}
-
-BYTE8 HWIGetScreenOn(void) {
-	return screenIsOn;
 }
 
 // *******************************************************************************************************************************

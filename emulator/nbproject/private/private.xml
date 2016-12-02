@@ -6,16 +6,6 @@
     </data>
     <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="0"/>
     <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
-        <group>
-            <file>file:/home/paulr/Projects/1k-coding-challenge/emulator/sys_processor.cpp</file>
-            <file>file:/home/paulr/Projects/1k-coding-challenge/emulator/_1801_disasm.h</file>
-            <file>file:/home/paulr/Projects/1k-coding-challenge/emulator/_1801_include.h</file>
-            <file>file:/home/paulr/Projects/1k-coding-challenge/emulator/_1801_opcodes.h</file>
-            <file>file:/home/paulr/Projects/1k-coding-challenge/emulator/sys_processor.h</file>
-            <file>file:/home/paulr/Projects/1k-coding-challenge/emulator/hardware.h</file>
-            <file>file:/home/paulr/Projects/1k-coding-challenge/emulator/sys_debug_cc.cpp</file>
-            <file>file:/home/paulr/Projects/1k-coding-challenge/emulator/hardware.cpp</file>
-            <file>file:/home/paulr/Projects/1k-coding-challenge/emulator/sys_debug_system.h</file>
-        </group>
+        <group/>
     </open-files>
 </project-private>

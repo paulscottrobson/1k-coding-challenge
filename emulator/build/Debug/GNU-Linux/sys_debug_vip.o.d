@@ -1,4 +1,4 @@
-build/Debug/GNU-Linux/sys_debug_cc.o: sys_debug_cc.cpp framework/gfx.h \
+build/Debug/GNU-Linux/sys_debug_vip.o: sys_debug_vip.cpp framework/gfx.h \
  /usr/include/SDL2/SDL.h /usr/include/SDL2/SDL_main.h \
  /usr/include/SDL2/SDL_stdinc.h /usr/include/SDL2/SDL_config.h \
  /usr/include/SDL2/SDL_platform.h /usr/include/SDL2/begin_code.h \
@@ -22,7 +22,7 @@ build/Debug/GNU-Linux/sys_debug_cc.o: sys_debug_cc.cpp framework/gfx.h \
  /usr/include/SDL2/SDL_system.h /usr/include/SDL2/SDL_timer.h \
  /usr/include/SDL2/SDL_version.h /usr/include/SDL2/SDL_audio.h \
  sys_processor.h framework/debugger.h sys_processor.h sys_debug_system.h \
- sys_processor.h hardware.h hardware.h _1801_disasm.h
+ sys_processor.h hardware.h hardware.h __1802mnemonics.h
 
 framework/gfx.h:
 
@@ -128,4 +128,4 @@ hardware.h:
 
 hardware.h:
 
-_1801_disasm.h:
+__1802mnemonics.h:

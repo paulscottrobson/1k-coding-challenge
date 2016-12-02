@@ -12,11 +12,12 @@
         <itemPath>framework/gfx.h</itemPath>
         <itemPath>framework/main.cpp</itemPath>
       </logicalFolder>
-      <itemPath>_1801_disasm.h</itemPath>
-      <itemPath>_1801_include.h</itemPath>
-      <itemPath>_1801_opcodes.h</itemPath>
-      <itemPath>_1801_ports.h</itemPath>
+      <itemPath>__1802mnemonics.h</itemPath>
+      <itemPath>__1802opcodes.h</itemPath>
+      <itemPath>__1802ports.h</itemPath>
+      <itemPath>__1802support.h</itemPath>
       <itemPath>hardware.h</itemPath>
+      <itemPath>monitor_rom.h</itemPath>
       <itemPath>sys_debug_system.h</itemPath>
       <itemPath>sys_processor.h</itemPath>
     </logicalFolder>
@@ -30,7 +31,7 @@
       <logicalFolder name="framework" displayName="framework" projectFiles="true">
       </logicalFolder>
       <itemPath>hardware.cpp</itemPath>
-      <itemPath>sys_debug_cc.cpp</itemPath>
+      <itemPath>sys_debug_vip.cpp</itemPath>
       <itemPath>sys_processor.cpp</itemPath>
     </logicalFolder>
     <logicalFolder name="TestFiles"
@@ -78,13 +79,13 @@
           </linkerLibItems>
         </linkerTool>
       </compileType>
-      <item path="_1801_disasm.h" ex="false" tool="3" flavor2="0">
+      <item path="__1802mnemonics.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="_1801_include.h" ex="false" tool="3" flavor2="0">
+      <item path="__1802opcodes.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="_1801_opcodes.h" ex="false" tool="3" flavor2="0">
+      <item path="__1802ports.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="_1801_ports.h" ex="false" tool="3" flavor2="0">
+      <item path="__1802support.h" ex="false" tool="3" flavor2="0">
       </item>
       <item path="framework/debugger.cpp" ex="false" tool="1" flavor2="0">
       </item>
@@ -102,9 +103,11 @@
       </item>
       <item path="hardware.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="sys_debug_cc.cpp" ex="false" tool="1" flavor2="0">
+      <item path="monitor_rom.h" ex="false" tool="3" flavor2="0">
       </item>
       <item path="sys_debug_system.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="sys_debug_vip.cpp" ex="false" tool="1" flavor2="0">
       </item>
       <item path="sys_processor.cpp" ex="false" tool="1" flavor2="0">
       </item>
@@ -147,13 +150,13 @@
           </linkerLibItems>
         </linkerTool>
       </compileType>
-      <item path="_1801_disasm.h" ex="false" tool="3" flavor2="0">
+      <item path="__1802mnemonics.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="_1801_include.h" ex="false" tool="3" flavor2="0">
+      <item path="__1802opcodes.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="_1801_opcodes.h" ex="false" tool="3" flavor2="0">
+      <item path="__1802ports.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="_1801_ports.h" ex="false" tool="3" flavor2="0">
+      <item path="__1802support.h" ex="false" tool="3" flavor2="0">
       </item>
       <item path="framework/debugger.cpp" ex="false" tool="1" flavor2="0">
       </item>
@@ -171,9 +174,11 @@
       </item>
       <item path="hardware.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="sys_debug_cc.cpp" ex="false" tool="1" flavor2="0">
+      <item path="monitor_rom.h" ex="false" tool="3" flavor2="0">
       </item>
       <item path="sys_debug_system.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="sys_debug_vip.cpp" ex="false" tool="1" flavor2="0">
       </item>
       <item path="sys_processor.cpp" ex="false" tool="1" flavor2="0">
       </item>

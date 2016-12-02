@@ -1,25 +1,156 @@
- AS V1.42 Beta [Bld 114] - source file test.asm - page 1 - 1/11/2016 16:43:24
+ AS V1.42 Beta [Bld 114] - source file test.asm - page 1 - 2/12/2016 16:31:21
 
 
        1/       0 :                     
        2/       0 :                     	cpu 	1802
-       3/       0 :                     	
+       3/       0 :                     
        4/       0 : =0H                 r0 = 0
        5/       0 : =1H                 r1 = 1
        6/       0 : =2H                 r2 = 2
        7/       0 : =3H                 r3 = 3
        8/       0 : =4H                 r4 = 4
        9/       0 : =5H                 r5 = 5
-      10/       0 :                     
-      11/       0 : 71                  	dis
-      12/       1 :                     ShowIt:
-      13/       1 : F8 80               	ldi 	080h
-      14/       3 : A3                  	plo 	r3
-      15/       4 : E3                  	sex 	r3
-      16/       5 : 6C                  	inp 	4
-      17/       6 : 64                  	out 	4
-      18/       7 : 30 01               	br 		ShowIt
- AS V1.42 Beta [Bld 114] - source file test.asm - page 2 - 1/11/2016 16:43:24
+      10/       0 : =DH                 rd = 13
+      11/       0 : =EH                 re = 14
+      12/       0 : =FH                 rf = 15
+      13/       0 :                     
+      14/       0 : 71                  	dis
+      15/       1 : F8 1E               	ldi 	01Eh
+      16/       3 : A2                  	plo 	r2							; working stack.
+      17/       4 : F8 00               	ldi 	00h
+      18/       6 : B2                  	phi 	r2
+      19/       7 : F8 00               	ldi 	start & 255
+      20/       9 : A4                  	plo 	r4
+      21/       A : F8 01               	ldi 	start / 256
+      22/       C : B4                  	phi 	r4
+      23/       D : D4                  	sep 	r4
+      24/       E :                     
+      25/     100 :                     	org 	100h
+      26/     100 :                     
+      27/     100 : =FFFFH              v2 = 0FFFFh
+      28/     100 : =1H                 v1 = 00001h
+      29/     100 :                     
+      30/     100 :                     start:
+      31/     100 : E2                  	sex 	r2
+      32/     101 : 22                  	dec 	r2
+      33/     102 : F8 00               	ldi 	v1/256 						; set up for 0+ pending
+      34/     104 : 73                  	stxd 								; X+2 = high byte
+      35/     105 : F8 01               	ldi 	v1&255
+      36/     107 : 73                  	stxd
+      37/     108 : F8 2A               	ldi 	'*'
+      38/     10A : 52                  	str 	r2
+      39/     10B :                     
+      40/     10B :                     ;
+      41/     10B :                     ;	get next term into RF.
+      42/     10B :                     ;
+      43/     10B : F8 00               	ldi 	0 							; RE is used for the counter/total for multiply/divide
+      44/     10D : BE                  	phi 	re
+      45/     10E : AE                  	plo 	re
+      46/     10F : BF                  	phi 	rf 							; the RF value is initialised to zero for digit constants.
+      47/     110 : AF                  	plo 	rf
+      48/     111 :                     
+      49/     111 : F8 FF               	ldi 	v2/256
+      50/     113 : BF                  	phi 	rf
+      51/     114 : F8 FF               	ldi 	v2&255
+      52/     116 : AF                  	plo 	rf
+      53/     117 :                     
+      54/     117 :                     ;
+      55/     117 :                     ;	Now we have the right hand term in RF, R(X) points to the operator, then low left then high left
+      56/     117 :                     ;
+      57/     117 :                     
+      58/     117 : 42                  	lda 	r2 							; restore the operator and pop off the stack.
+      59/     118 : FB 2B               	xri 	'+'							; is it + (add)
+      60/     11A : 3A 24               	bnz 	__NotPlus
+ AS V1.42 Beta [Bld 114] - source file test.asm - page 2 - 2/12/2016 16:31:21
+
+
+      61/     11C :                     ;
+      62/     11C :                     ;	16 bit addition
+      63/     11C :                     ;	
+      64/     11C : 8F                  	glo 	rf 							; low byte
+      65/     11D : F4                  	add		
+      66/     11E : 52                  	str 	r2
+      67/     11F : 9F                  	ghi 	rf 							; high byte
+      68/     120 : 12                  	inc 	r2
+      69/     121 : 74                  	adc
+      70/     122 : 30 60               	br 		__WriteHighAndExit
+      71/     124 :                     
+      72/     124 :                     __NotPlus:
+      73/     124 : FB 01               	xri 	'+'!'*'						; is it * (multiply)
+      74/     126 : 3A 39               	bnz 	__NotMultiply
+      75/     128 :                     ;
+      76/     128 :                     ;	16 bit multiplication....... slow but compact.
+      77/     128 :                     ;	
+      78/     128 :                     __MultiplyLoop:
+      79/     128 : 8F                  	glo 	rf 							; check completed (e.g. RF = 0)
+      80/     129 : 3A 2E               	bnz 	__MultiplyContinuing
+      81/     12B : 9F                  	ghi 	rf
+      82/     12C : 32 54               	bz 		__SaveREtoResult
+      83/     12E :                     __MultiplyContinuing:
+      84/     12E : 2F                  	dec 	rf 				 			; one fewer add
+      85/     12F : 8E                  	glo 	re
+      86/     130 : F4                  	add
+      87/     131 : AE                  	plo 	re
+      88/     132 : 9E                  	ghi 	re
+      89/     133 : 12                  	inc 	r2
+      90/     134 : 74                  	adc
+      91/     135 : BE                  	phi 	re
+      92/     136 : 22                  	dec 	r2
+      93/     137 : 30 28               	br 		__MultiplyLoop
+      94/     139 :                     
+      95/     139 :                     
+      96/     139 :                     __NotMultiply:
+      97/     139 : FB 05               	xri 	'*'!'/'						; check if it is divide.
+      98/     13B : 3A 5A               	bnz 	__NotAddMulDiv 				; it is not + * or /
+      99/     13D :                     ;
+     100/     13D :                     ;	16 bit division. Really slow, takes several seconds 
+     101/     13D :                     ;
+     102/     13D : 8F                  	glo 	rf 							; check divide by zero (e.g. RF = 0)
+     103/     13E : 3A 43               	bnz 	__DivideLoop 
+     104/     140 : 9F                  	ghi 	rf
+     105/     141 : 32 54               	bz 		__SaveREToResult 			; if RF is zero then return 0 - so n/0 = 0 in this.
+     106/     143 :                     __DivideLoop:
+     107/     143 : 8F                  	glo 	rf 							; subtract once.
+     108/     144 : F5                  	sd 
+     109/     145 : AD                  	plo 	rd 							; save result in RD in case we borrow out.
+     110/     146 : 9F                  	ghi 	rf
+     111/     147 : 12                  	inc 	r2
+     112/     148 : 75                  	sdb 		
+     113/     149 : 3B 51               	bnf 	__DivideCompleted 			; if DF = 0 we have finished the division.	
+     114/     14B : 73                  	stxd 								; save a-b back on stack space.	
+     115/     14C : 8D                  	glo 	rd
+     116/     14D : 52                  	str 	r2
+     117/     14E : 1E                  	inc 	re 							; we've done it once.
+     118/     14F : 30 43               	br 		__DivideLoop
+     119/     151 :                     
+     120/     151 :                     __DivideCompleted:
+ AS V1.42 Beta [Bld 114] - source file test.asm - page 3 - 2/12/2016 16:31:21
+
+
+     121/     151 : 02                  	ldn 	r2 							; this is remainder high - TODO: save it
+     122/     152 : 22                  	dec 	r2 							
+     123/     153 : 02                  	ldn 	r2 							; this is remainder low. - TODO: save it.
+     124/     154 :                     
+     125/     154 :                     __SaveREToResult:
+     126/     154 : 8E                  	glo 	re 							; copy RE to the final result.
+     127/     155 : 52                  	str 	r2
+     128/     156 : 12                  	inc 	r2
+     129/     157 : 9E                  	ghi 	re
+     130/     158 : 30 60               	br 		__WriteHighAndExit						
+     131/     15A :                     
+     132/     15A :                     __NotAddMulDiv: 						; we don't know, so we do -, it's probably - > < =
+     133/     15A : 8F                  	glo 	rf 							
+     134/     15B : F5                  	sd 
+     135/     15C : 52                  	str 	r2
+     136/     15D : 9F                  	ghi 	rf
+     137/     15E : 12                  	inc 	r2
+     138/     15F : 75                  	sdb
+     139/     160 :                     __WriteHighAndExit:	
+     140/     160 : 73                  	stxd
+     141/     161 :                     
+     142/     161 :                     EndEvaluate:							; R2 points to the result.
+     143/     161 : 30 61               	br 		EndEvaluate
+ AS V1.42 Beta [Bld 114] - source file test.asm - page 4 - 2/12/2016 16:31:21
 
 
   symbol table (* = unused):
@@ -28,26 +159,34 @@
 *ARCHITECTURE :                                        x86_64-unknown-linux - |
 *BIGENDIAN :                      0 - | *BRANCHEXT :                      0 - |
 *CASESENSITIVE :                  0 - | *CONSTPI :        3.141592653589793 - |
-*DATE :                   1/11/2016 - | *FALSE :                          0 - |
-*FULLPMMU :                       1 - | *HAS64 :                          1 - |
-*HASDSP :                         0 - | *HASFPU :                         0 - |
-*HASPMMU :                        0 - | *INEXTMODE :                      0 - |
-*INLWORDMODE :                    0 - | *INMAXMODE :                      0 - |
-*INSRCMODE :                      0 - | *INSUPMODE :                      0 - |
-*LISTON :                         1 - | *MACEXP :                         1 - |
-*MOMCPU :                      1802 - | *MOMCPUNAME :                  1802 - |
-*NESTMAX :                      100 - | *PACKING :                        0 - |
-*PADDING :                        1 - | *R0 :                             0 - |
-*R1 :                             1 - | *R2 :                             2 - |
- R3 :                             3 - | *R4 :                             4 - |
-*R5 :                             5 - | *RELAXED :                        0 - |
- SHOWIT :                         1 C | *TIME :                    16:43:24 - |
-*TRUE :                           1 - | *VERSION :                     142F - |
+*DATE :                   2/12/2016 - |  ENDEVALUATE :                  161 C |
+*FALSE :                          0 - | *FULLPMMU :                       1 - |
+*HAS64 :                          1 - | *HASDSP :                         0 - |
+*HASFPU :                         0 - | *HASPMMU :                        0 - |
+*INEXTMODE :                      0 - | *INLWORDMODE :                    0 - |
+*INMAXMODE :                      0 - | *INSRCMODE :                      0 - |
+*INSUPMODE :                      0 - | *LISTON :                         1 - |
+*MACEXP :                         1 - | *MOMCPU :                      1802 - |
+*MOMCPUNAME :                  1802 - | *NESTMAX :                      100 - |
+*PACKING :                        0 - | *PADDING :                        1 - |
+*R0 :                             0 - | *R1 :                             1 - |
+ R2 :                             2 - | *R3 :                             3 - |
+ R4 :                             4 - | *R5 :                             5 - |
+ RD :                             D - |  RE :                             E - |
+*RELAXED :                        0 - |  RF :                             F - |
+ START :                        100 C | *TIME :                    16:31:21 - |
+*TRUE :                           1 - |  V1 :                             1 - |
+ V2 :                          FFFF - | *VERSION :                     142F - |
+ __DIVIDECOMPLETED :            151 C |  __DIVIDELOOP :                 143 C |
+ __MULTIPLYCONTINUING :         12E C |  __MULTIPLYLOOP :               128 C |
+ __NOTADDMULDIV :               15A C |  __NOTMULTIPLY :                139 C |
+ __NOTPLUS :                    124 C |  __SAVERETORESULT :             154 C |
+ __WRITEHIGHANDEXIT :           160 C |
 
-     35 symbols
-     33 unused symbols
+     50 symbols
+     32 unused symbols
 
- AS V1.42 Beta [Bld 114] - source file test.asm - page 3 - 1/11/2016 16:43:24
+ AS V1.42 Beta [Bld 114] - source file test.asm - page 5 - 2/12/2016 16:31:21
 
 
   codepages:
@@ -56,9 +195,9 @@
 STANDARD (0 changed characters)
 
 
-0.00 seconds assembly time
+0.01 seconds assembly time
 
-     18 lines source file
-      1 pass
+    143 lines source file
+      2 passes
       0 errors
       0 warnings

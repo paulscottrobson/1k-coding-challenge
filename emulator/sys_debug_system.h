@@ -16,7 +16,7 @@
 #define _DEBUG_SYS_H
 #include "sys_processor.h"
 
-#define WIN_TITLE 		"Cosmac CoinOp Emulator"										// Initial Window stuff
+#define WIN_TITLE 		"1802 Machine Emulator"										// Initial Window stuff
 #define WIN_WIDTH		(32*8*4)
 #define WIN_HEIGHT		(23*8*4+64)
 #define WIN_BACKCOLOUR	0x004

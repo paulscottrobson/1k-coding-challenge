@@ -1,62 +1,55 @@
 #
-#		Process 8008.def into C include files.
+#	Definition File Processor
 #
 import re
 
-def process(txt,ofst,opc):
-	txt = txt.replace("@R","ABCDEHLM"[ofst & 7])
-	txt = txt.replace("@C",["NC","NZ","P","PO","C","Z","M","PE"][ofst & 7])
-	t = [ "Carry==0","pszValue != 0","(pszValue & 0x80) == 0","isEvenParity() == 0", \
-		  "Carry!=0","pszValue == 0","(pszValue & 0x80) != 0","isEvenParity() != 0"]
-	txt = txt.replace("@T",t[ofst & 7])		
-	txt = txt.replace("@P","{0:02X}".format((opc >> 1) & 0x1F))
-	txt = txt.replace("@X","{0:02X}".format(opc & 0x38))
-	return txt
+def process(s,opcode):
+	s = s.replace("@F",str((opcode & 3)+1))
+	s = s.replace("@X","{0:X}".format(opcode & 15))
+	s = s.replace("@P",str(opcode & 7))
+	s = s.replace("@R",str(opcode & 15))
+	return s
 
-src = open("8008.def","r").readlines()													# read file
-src = [x if x.find("//") < 0 else x[:x.find("//")] for x in src]						# delete comments
-src = [x.replace("\t"," ").strip() for x in src]										# spaces and tabs
-src = [x for x in src if x != ""]														# remove blank lines
+mnemonics = [ None ] * 256
+code = [ None ] * 256
 
-open("_8008_include.h","w").write("\n".join([x[1:] for x in src if x[0] == ':']))
+lines = open("1802.def").readlines()														# read definition file.
+lines = [x if x.find("//") < 0 else x[:x.find("//")] for x in lines]						# remove comments.
+lines = [x.replace("\t"," ").strip() for x in lines]										# strip and remove spaces
+lines = [x for x in lines if x != ""]														# remove empty lines.
 
-mnemonics = [ None ] * 256																# mnemonics
-codes = [ None ] * 256																	# executable codes.
+open("__1802support.h","w").write("\n".join(x[1:] for x in lines if x[0] == ':'))			# output C
+lines = [x for x in lines if x[0] != ":"]													# then remove it.
 
-for l in [x for x in src if x[0] != ':']:												# for each line.
-	m = re.match('^([0-9A-F\\-\\,]+)\\s*(\\d+)\\s*\\"(.*)\\"\s*(.*)$',l)							# check it
-	assert m is not None,"Error "+l
-	rg = m.group(1)
-	if len(rg) == 2:																	# get from/to range
-		rg = rg + "-"+rg
-	if len(rg) == 5:
-		rg = rg + ",1"
-	step = int(rg[-1])
-	for opcode in range(int(rg[:2],16),int(rg[3:5],16)+1,step):							# for each opcode
+for l in lines:
+	match = re.match("^([0-9A-F\-]+)\s+\"(.*?)\"\s+(.*)$",l)								# split up.
+	assert(match is not None)
+	oStart = oEnd = int(match.group(1)[:2],16)												# range of opcodes
+	if len(match.group(1)) == 5:
+		oEnd = int(match.group(1)[-2:],16)
+	for opcode in range(oStart,oEnd+1):
 		assert mnemonics[opcode] is None
-		offset = int(opcode/step)
-		mnemonics[opcode] = process(m.group(3),offset,opcode).lower()
-		codes[opcode] = process(m.group(4),offset,opcode)
+		mnemonics[opcode] = process(match.group(2),opcode).lower()
+		code[opcode] = process(match.group(3),opcode)
+																							# Dump mnemonics
+open("__1802mnemonics.h","w").write(",".join([('"'+x+'"').lower() for x in mnemonics]))
 
-for i in range(0,256):																	# fill in mnemonics
-	if mnemonics[i] is None:
-		mnemonics[i] = "byte {0:02x}".format(i)
-
-open("_8008_disasm.h","w").write(",".join(['"'+m+'"' for m in mnemonics]))				# write out disassembly table
-
-h = open("_8008_opcodes.h","w")
+handle = open("__1802opcodes.h","w")
 for i in range(0,256):
-	if codes[i] is not None:
-		h.write("case 0x{0:02x}: // *** {1} ***\n".format(i,mnemonics[i]))
-		h.write("    {0};break;\n".format(codes[i]))
+	handle.write("case 0x{0:02x}: /***** {1} *****/\n".format(i,mnemonics[i]))
+	handle.write("    {0};\n".format(code[i]))
+	handle.write("    break;\n\n")
 
-h = open("_8008_ports.h","w")
+handle = open("__1802ports.h","w")
 for i in range(0,8):
-	h.write("#ifndef INPORT{0:02X}\n".format(i))
-	h.write("#define INPORT{0:02X}() (0)\n".format(i))
-	h.write("#endif\n")
-for i in range(8,32):
-	h.write("#ifndef OUTPORT{0:02X}\n".format(i))
-	h.write("#define OUTPORT{0:02X}(v) {{}}\n".format(i))
-	h.write("#endif\n")
-h.close()
+	if i > 0:
+		handle.write("#ifndef INPORT{0}\n".format(i))
+		handle.write("#define INPORT{0}() (DEFAULT_BUS_VALUE)\n".format(i))
+		handle.write("#endif\n")
+	handle.write("#ifndef OUTPORT{0}\n".format(i))
+	handle.write("#define OUTPORT{0}(n) {{}}\n".format(i))
+	handle.write("#endif\n")
+for i in range(1,5):
+	handle.write("#ifndef EFLAG{0}\n".format(i))
+	handle.write("#define EFLAG{0}() (0)\n".format(i))
+	handle.write("#endif\n")

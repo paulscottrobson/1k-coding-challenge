@@ -1,9 +1,9 @@
 // *******************************************************************************************************************************
 // *******************************************************************************************************************************
 //
-//		Name:		sys_debug_cc.c
+//		Name:		sys_debug_vip.c
 //		Purpose:	Debugger Code (System Dependent)
-//		Created:	24th November 2016
+//		Created:	1st November 2016
 //		Author:		Paul Robson (paul@robsons->org.uk)
 //
 // *******************************************************************************************************************************
@@ -19,7 +19,7 @@
 #include "hardware.h"
 
 static const char*_mnemonics[256] = {												// Mnenonics array.
-#include "_1801_disasm.h"
+#include "__1802mnemonics.h"
 };
 
 #define DBGC_ADDRESS 	(0x0F0)														// Colour scheme.
@@ -30,7 +30,7 @@ static const char*_mnemonics[256] = {												// Mnenonics array.
 //											This renders the debug screen
 // *******************************************************************************************************************************
 
-static const char *labels[] = { "D","DF","P","X","T","IE","RP","RX","CY","BP", NULL };
+static const char *labels[] = { "D","DF","P","X","T","Q","IE","RP","RX","CY","BP", NULL };
 
 void DBGXRender(int *address,int showDisplay) {
 	int n = 0;
@@ -42,11 +42,11 @@ void DBGXRender(int *address,int showDisplay) {
 	#define DN(v,w) GFXNumber(GRID(18,n++),v,16,w,GRIDSIZE,DBGC_DATA,-1)			// Helper macro
 
 	n = 0;
-	DN(s->d,2);DN(s->df,1);DN(s->p,1);DN(s->x,1);DN(s->t,2);DN(s->ie,1);	// Registers
+	DN(s->d,2);DN(s->df,1);DN(s->p,1);DN(s->x,1);DN(s->t,2);DN(s->q,1);DN(s->ie,1);	// Registers
 	DN(s->pc,4);DN(s->r[s->x],4);DN(s->cycles,4);DN(address[3],4);					// Others
 
 	for (int i = 0;i < 16;i++) {													// 16 bit registers
-		sprintf(buffer,"R%x",i);
+		sprintf(buffer,"R%X",i);
 		GFXString(GRID(i % 4 * 8,i/4+12),buffer,GRIDSIZE,DBGC_ADDRESS,-1);
 		GFXString(GRID(i % 4 * 8+2,i/4+12),":",GRIDSIZE,DBGC_HIGHLIGHT,-1);
 		GFXNumber(GRID(i % 4 * 8+3,i/4+12),s->r[i],16,4,GRIDSIZE,DBGC_DATA,-1);
@@ -72,33 +72,20 @@ void DBGXRender(int *address,int showDisplay) {
 																	isBrk ? 0xF00 : -1);
 		opc = CPUReadMemory(p);p = (p + 1) & 0xFFFF;								// Read opcode.
 		strcpy(buffer,_mnemonics[opc]);												// Work out the opcode.
-		char *at = buffer+strlen(buffer)-1;											// 2nd char from end
-		if (*at == '*') {															// Operand ?
-			sprintf(at,"%02x",CPUReadMemory(p));
-			p = (p+1) & 0xFFFF;
+		char *at = buffer+strlen(buffer)-2;											// 2nd char from end
+		if (*at == '$') {															// Operand ?
+			if (at[1] == '1') {
+				sprintf(at,"%02x",CPUReadMemory(p));
+				p = (p+1) & 0xFFFF;
+			}
+			else if (at[1] == '2') {
+				sprintf(at,"%02x%02x",CPUReadMemory(p),CPUReadMemory(p+1));
+				p = (p+2) & 0xFFFF;
+			}
 		}
 		GFXString(GRID(5,row),buffer,GRIDSIZE,isPC ? DBGC_HIGHLIGHT:DBGC_DATA,-1);	// Print the mnemonic
 	}
 
 	if (showDisplay) {
-		p = HWIGetPageAddress();														// wherever the screen is, it's now in R0.
-		SDL_Rect rc;rc.x = _GFXX(0);rc.y = _GFXY(14)/2;									// Whole rectangle.
-		int vLines = 32;
-		rc.w = 32 * GRIDSIZE * 6;rc.h = 16 *GRIDSIZE * 8; 										
-		rc.w = rc.w/64*64;rc.h = rc.h/vLines*vLines;									// Make it /64 /32 (etc)
-		SDL_Rect rcPixel;rcPixel.h = rc.h/vLines;rcPixel.w = rc.w / 64;					// Pixel rectangle.
-        SDL_Rect rcDraw;rcDraw.h = rcPixel.h/2;rcDraw.w = rcPixel.w/2;
-		GFXRectangle(&rc,0x0);															// Fill it black
-		if (p != 0xFFFF && HWIGetScreenOn() != 0) {										// If actually valid.
-			for (int i = 0;i < 32*vLines;i++) {
-				int bt = CPUReadMemory(p+i);
-				rcDraw.x = rc.x + rcPixel.w * 8 * (i % 8);								// Horizontal position
-				rcDraw.y = rc.y + i / 8 * rcPixel.h;
-				for (int b = 0;b < 8;b++) {
-					if (bt & (0x80 >> b)) GFXRectangle(&rcDraw,0xF80);
-					rcDraw.x += rcPixel.w;
-				}			
-			}
-		}
-	}
+    }
 }	
