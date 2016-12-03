@@ -1,2 +1,2 @@
 python process.py
-cp __*.h ../emulator
+cp  __8008*.* ../emulator

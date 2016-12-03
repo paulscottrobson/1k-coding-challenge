@@ -1,0 +1,119 @@
+// *******************************************************************************************************************************
+// *******************************************************************************************************************************
+//
+//		Name:		8008.def
+//		Purpose:	8008 CPU Definition file.
+//		Created:	23rd October 2015
+//		Author:		Paul Robson (paul@robsons.org.uk)
+//
+// *******************************************************************************************************************************
+// *******************************************************************************************************************************
+
+// *****************************************************************************************************************
+//
+//	%C 		Condition name (e.g. NZ) 		(from bits 3,4,5 of opcode)
+//	%D 		Source as A,B,C,D,E,H,M 		(Bits 3,4,5 of opcode)
+//	%MAHL	Put HL as 16 bit value in MA
+//	%P 		Port number as hex 				(from bits 1,2,3,4,5 of opcode)
+//	%R 		Reset address as hex 			(from bits 3,4,5 of opcode)
+//	%S 		Source as A,B,C,D,E,H,M 		(Bits 0,1,2 of opcode)
+//	%T 		Condition test (e.g. (A != 0))	(from bits 3,4,5 of opcode)
+//
+// *****************************************************************************************************************
+
+// *****************************************************************************************************************
+//										Index Register Instructions
+// *****************************************************************************************************************
+
+C0-C6	"MOV A,%S"		5		A = %S 													// Register -> Register movements
+C8-CE 	"MOV B,%S"		5 		B = %S
+D0-D6	"MOV C,%S"		5		C = %S
+D8-DE 	"MOV D,%S"		5 		D = %S
+E0-E6	"MOV E,%S"		5		E = %S
+E8-EE 	"MOV H,%S"		5 		H = %S
+F0-F6	"MOV L,%S"		5		L = %S
+
+F8-FE 	"MOV M,%S"		7 		%MAHL;MB = %S;WRITE() 									// Register -> Memory movements
+
+C7-F7,8	"MOV %D,M"		8 		%MAHL;READ();%D = MB 									// Memory -> Register movements
+
+06-36,8 "MVI %D,@1"		8 		FETCH();%D = MB 										// Load immediate register
+3E 		"MVI M,@1"		9		FETCH();%MAHL;WRITE() 									// Load immediate memory
+
+08-30,8	"INR %D"		5 		pszValue = %D = (%D + 1) & 0xFF							// Increment register (not A or M)
+09-31,8	"DCR %D"		5 		pszValue = %D = (%D - 1) & 0xFF							// Decrement register (not A or M)
+
+// *****************************************************************************************************************
+//											ALU Group Instructions
+// *****************************************************************************************************************
+
+80-86 	"ADD %S"		5 		carry = 0;MB = %S;_BinaryAdd();A = pszValue = MB 		// Add no carry
+87		"ADD M"			8 		carry = 0;%MAHL;READ();_BinaryAdd();A = pszValue = MB
+04 		"ADI @1"		8 		carry = 0;FETCH();_BinaryAdd();A = pszValue = MB
+
+88-8E 	"ADC %S"		5 		MB = %S;_BinaryAdd();A = pszValue = MB 					// Add with carry
+8F		"ADC M"			8 		%MAHL;READ();_BinaryAdd();A = pszValue = MB
+0C 		"ACI @1"		8 		FETCH();_BinaryAdd();A = pszValue = MB
+
+90-96 	"SUB %S"		5 		carry = 0;MB = %S;_BinarySubtract();A = pszValue = MB 	// Sub no borrow
+97		"SUB M"			8 		carry = 0;%MAHL;READ();_BinarySubtract();A = pszValue = MB
+14 		"SUI @1"		8 		carry = 0;FETCH();_BinarySubtract();A = pszValue = MB
+
+98-9E 	"SBB %S"		5 		MB = %S;_BinarySubtract();A = pszValue = MB 			// Sub with borrow
+9F		"SBB M"			8 		%MAHL;READ();_BinarySubtract();A = pszValue = MB
+1C 		"SBI @1"		8 		FETCH();_BinarySubtract();A = pszValue = MB
+
+A0-A6 	"ANA %S"		5 		carry = 0;MB = %S;MB &= A;A = pszValue = MB 			// Logical And
+A7		"ANA M"			8 		carry = 0;%MAHL;READ();MB &= A;A = pszValue = MB
+24 		"ANI @1"		8 		carry = 0;FETCH();MB &= A;A = pszValue = MB
+
+A8-AE 	"XRA %S"		5 		carry = 0;MB = %S;MB ^= A;A = pszValue = MB 			// Logical Xor
+AF		"XRA M"			8 		carry = 0;%MAHL;READ();MB ^= A;A = pszValue = MB
+2C 		"XRI @1"		8 		carry = 0;FETCH();MB ^= A;A = pszValue = MB
+
+B0-B6 	"ORA %S"		5 		carry = 0;MB = %S;MB |= A;A = pszValue = MB 			// Logical And
+B7		"ORA M"			8 		carry = 0;%MAHL;READ();MB |= A;A = pszValue = MB
+34 		"ORI @1"		8 		carry = 0;FETCH();MB |= A;A = pszValue = MB
+
+B8-BE 	"CMP %S"		5 		carry = 0;MB = %S;_BinarySubtract();pszValue = MB 		// Compare (flags sub w/o borrow)
+BF		"CMP M"			8 		carry = 0;%MAHL;READ();_BinarySubtract();pszValue = MB
+3C 		"CPI @1"		8 		carry = 0;FETCH();_BinarySubtract();pszValue = MB
+
+02 		"RLC"			5		carry = A >> 1;A = (A << 1) | carry; 					// Rotate A left into carry
+0A 		"RRC"			5		carry = A & 1;A = (A >> 1) | (carry << 7);				// Rotate A right into carry
+
+12 		"RAL"			5		temp16 = (A << 1)|carry;carry = A>>7;A = temp16 & 0xFF 	// Rotate A left through carry
+1A 		"RAR"			5		temp16 = A|(carry << 8);carry = temp16&1;A = temp16>>1	// Rotate A right through carry
+
+//
+// Binary Add/Subtract do MB = A +/- MB +/- carry and set the carry/borrow.
+//
+
+// *****************************************************************************************************************
+//								Program Counter and Stack Control instructions
+// *****************************************************************************************************************
+
+44-7C,8	"JMP @2"		11		FETCHWORD();JUMP() 										// Unconditional Jump
+40-78,8 "J%C @2" 		10 		FETCHWORD();if (%T) JUMP() 								// Conditional Jump
+
+46-7E,8 "CALL @2"		11 		FETCHWORD();CALL() 										// Unconditional Call
+42-7A,8	"C%C @2"		10 		FETCHWORD();if (%T) CALL()								// Conditional Call
+
+07-3F,8	"RET"			5 		RETURN()												// Unconditional Return
+03-3B,8 "R%C"			4		if (%T) RETURN() 										// Conditional Return
+
+05-3D,8 "RST %R"		5 		MA = 0x%R;CALL() 										// Short call
+
+// *****************************************************************************************************************
+//											Input/Output Instructions
+// *****************************************************************************************************************
+
+41-4F,2	"IN %P"			8 		MB = 0;INPORT%P();A = MB 								// Input from port
+51-7F,2 "OUT %P"		6 		MB = A;OUTPORT%P() 										// Output to port
+	
+// *****************************************************************************************************************
+//											   Machine instructions
+// *****************************************************************************************************************
+
+00-01	"HLT"			4		HaltFlag = 1											// Halt instruction
+FF		"HLT"			4		HaltFlag = 1
