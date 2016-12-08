@@ -79,7 +79,7 @@ B8-BE 	"CMP %S"		5 		carry = 0;MB = %S;_BinarySubtract();pszValue = MB 		// Comp
 BF		"CMP M"			8 		carry = 0;%MAHL;READ();_BinarySubtract();pszValue = MB
 3C 		"CPI @1"		8 		carry = 0;FETCH();_BinarySubtract();pszValue = MB
 
-02 		"RLC"			5		carry = A >> 1;A = (A << 1) | carry; 					// Rotate A left into carry
+02 		"RLC"			5		carry = A >> 7;A = (A << 1) | carry; 					// Rotate A left into carry
 0A 		"RRC"			5		carry = A & 1;A = (A >> 1) | (carry << 7);				// Rotate A right into carry
 
 12 		"RAL"			5		temp16 = (A << 1)|carry;carry = A>>7;A = temp16 & 0xFF 	// Rotate A left through carry

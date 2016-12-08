@@ -27,6 +27,7 @@ BYTE8 CPUExecuteInstruction(void);													// Execute one instruction (multi
 void HWIReset(void);																// Reset hardware.
 void HWIEndFrame(void);																// End frame.
 void HWIWriteVideoPort(BYTE8 n);													// Write to video port
+BYTE8 HWIGetXCursor(void);
 BYTE8 HWIReadKeyboard(void);														// Read keyboard
 int HWIProcessKey(int key,int isRunTime);											// Process debug key (Win only)
 BYTE8 HWIReadVideoMemory(WORD16 offset);											// Read video memory

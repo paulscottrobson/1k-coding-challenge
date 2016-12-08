@@ -43,7 +43,8 @@ static BYTE8 ramMemory[RAMSIZE];													// RAM memory
 // *******************************************************************************************************************************
 
 #define INPORT00() 	MB = HWIReadKeyboard()											// Port 0  (Input 0) is the ASCII keyboard
-#define OUTPORT0E()	HWIWriteVideoPort(MB)											// Port 14 (Output 6) is the Suding TVT
+#define INPORT01()  MB = 0x80;                                                      // Port 1 Bit 7 is ready to transmit.
+#define OUTPORT08()	HWIWriteVideoPort(MB)											// Port 14 (Output 6) is the Suding TVT
 
 // *******************************************************************************************************************************
 //													Support Macros and Functions

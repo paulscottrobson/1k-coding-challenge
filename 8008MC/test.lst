@@ -1,510 +1,209 @@
- AS V1.42 Beta [Bld 102] - source file test.asm - page 1 - 10/26/2015 10:07:46
+ AS V1.42 Beta [Bld 114] - source file test.asm - page 1 - 8/12/2016 9:58:01
 
 
        1/       0 :                     	
        2/       0 :                     		cpu		8008new
        3/       0 :                     
-       4/       0 : =EH                 TVPort = 0eh
-       5/       0 : =8H                 CassetteOutputPort = 08h
-       6/       0 : =1H                 CassetteInputPort = 01h
-       7/       0 : =0H                 KeyboardPort = 00h
+       4/       0 :                     
+       5/       0 : =800H               VariablePage = 0800h 											; this page has variables offset from ASCII 58
+       6/       0 : =900H               InputPage = 0900h 												; text input goes here.
+       7/       0 : =2000H              ProgramMemory = 2000h 											; 127 program lines go here. 64 bytes each.
        8/       0 :                     
-       9/       0 : =101H               CWWriteHeader = 0101h 									; header loop count ($FFFF)
-      10/       0 : =101H               CWTrailerCount = 0101h 									; trailer loop count ($7FFF)
-      11/       0 : =1H                 CWBitLength = 01o 										; length of one bit write. (40o)
-      12/       0 : =1H                 CWByteSpacing = 01o 									; gap between bytes. (100o)
-      13/       0 :                     
-      14/       0 :                     		org 	0
-      15/       0 : 0D                  		rst 	8
-      16/       1 : FF                  		db 		255
-      17/       8 :                     		org 	8
-      18/       8 :                     		;jmp 	Speeding
-      19/       8 :                     		;jmp	CassetteRead2	
-      20/       8 :                     		;jmp 	CassetteWrite
-      21/       8 : 44 00 02            		jmp 	RunningDisplay
-      22/       B : 44 98 00            		jmp 	KBToMemory
-      23/       E : 44 80 00            		jmp 	TVTest
-      24/      11 :                     
-      25/      11 :                     ;		db		"Hello world !!!!!"
-      26/      11 :                     ;		db 		0,1,2,3,4,5
-      27/      11 :                     ;		db 		255,254,253,252,251
-      28/      11 :                     
-      29/      11 :                     Speeding:
-      30/      11 : 46 40 06            		call 	HomeErase
-      31/      14 :                     SPNext:
-      32/      14 : 2E 00               		mvi 	h,Counter/256
-      33/      16 : 36 39               		mvi 	l,Counter&255
-      34/      18 : 06 FF               		mvi 	a,0FFh
-      35/      1A : 5D                  		out 	TVPort
-      36/      1B : A8                  		xra 	a
-      37/      1C : 5D                  		out 	TVPort
-      38/      1D : C7                  SPPaint:mov 	a,m
-      39/      1E : 34 B0               		ori 	080h!'0'
-      40/      20 : 5D                  		out 	TVPort
-      41/      21 : A8                  		xra 	a
-      42/      22 : 5D                  		out 	TVPort
-      43/      23 : 30                  		inr 	l
-      44/      24 : C6                  		mov 	a,l
-      45/      25 : 3C 41               		cpi 	(Counter&255)+8
-      46/      27 : 48 1D 00            		jnz 	SPPaint
-      47/      2A : 31                  SPDec:	dcr 	l
-      48/      2B : C7                  		mov 	a,m
-      49/      2C : 04 01               		adi 	1
-      50/      2E : F8                  		mov 	m,a
-      51/      2F : 3C 0A               		cpi 	10
-      52/      31 : 48 14 00            		jnz 	SPNext
-      53/      34 : 3E 00               		mvi 	m,0
-      54/      36 : 44 2A 00            		jmp 	SPDec
-      55/      39 :                     
-      56/      39 :                     
-      57/      39 :                     Counter:
-      58/      39 :                     
-      59/      39 :                     ; *****************************************************************************************************
-      60/      39 :                     ;									TV Character Generator Test
- AS V1.42 Beta [Bld 102] - source file test.asm - page 2 - 10/26/2015 10:07:46
+       9/       0 :                     		org 	0
+      10/       0 : 44 00 07            		jmp 	0700h
+      11/       3 :                     
+      12/     700 :                     		org 	0700h
+      13/     700 : 2E 08               		mvi 	h,VariablePage/256
+      14/     702 : 36 07               		mvi 	l,7
+      15/     704 : 3E 25               		mvi 	m,37
+      16/     706 :                     
+      17/     706 : 2E 07               		mvi 	h,Sum / 256
+      18/     708 : 36 0E               		mvi 	l,Sum & 255
+      19/     70A : 15                  		rst 	Evaluate
+      20/     70B : 44 0B 07            Stop:	jmp 	Stop
+      21/     70E :                     
+      22/     70E :                     Sum:
+      23/     70E : 37 00               		db 		"7",0
+      24/     710 :                     
+      25/     710 :                     
+      26/     710 :                     ; ***********************************************************************************************
+      27/     710 :                     ; ***********************************************************************************************
+      28/     710 :                     ;
+      29/     710 :                     ;		Routine : 8 bytes. Read next non space character from (HL)
+      30/     710 :                     ;
+      31/     710 :                     ; ***********************************************************************************************
+      32/     710 :                     ; ***********************************************************************************************
+      33/     710 :                     
+      34/       8 :                     		org 	8
+      35/       8 :                     GetNextCharacter:
+      36/       8 : C7                  		mov 	a,m 											; read character.
+      37/       9 : 30                  		inr 	l 												; and advance.
+      38/       A : 3C 20               		cpi 	' '												; if space
+      39/       C : 68 1D 00            		jz 		NextCharacter 									; get another one.
+      40/       F : 07                  		ret
+      41/      10 :                     
+      42/      10 :                     ; ***********************************************************************************************
+      43/      10 :                     ; ***********************************************************************************************
+      44/      10 :                     ;
+      45/      10 :                     ;	Evaluate string at HL. Returns result in B. Operators are + - * / and , (xor) . (and)
+      46/      10 :                     ;
+      47/      10 :                     ;	Not awfully syntax checked :) x/0 returns 0.
+      48/      10 :                     ;
+      49/      10 :                     ;	On exit HL points to found unknown character.
+      50/      10 :                     ; 	On exit ED points to the line number if it's a program line (that way round)
+      51/      10 :                     ;
+      52/      10 :                     ; ***********************************************************************************************
+      53/      10 :                     ; ***********************************************************************************************
+      54/      10 :                     
+      55/      10 :                     Evaluate:
+      56/      10 : A8                  		xra 	a
+      57/      11 : C8                  		mov 	b,a 											; b is current left value
+      58/      12 : D8                  		mov 	d,a 											; d is current right value
+      59/      13 : 16 01               		mvi 	c,1 											; c is current operator (+ = 1)
+      60/      15 :                     AddDigit:
+ AS V1.42 Beta [Bld 114] - source file test.asm - page 2 - 8/12/2016 9:58:01
 
 
-      61/      39 :                     ; *****************************************************************************************************
-      62/      39 :                     
-      63/      80 :                     		org 	0200o
-      64/      80 :                     TVTest:
-      65/      80 : 06 FF               		mvi 	a,0FFh									; home cursor first time (0xFF)
-      66/      82 : 5D                  		out 	TVPort
-      67/      83 : A8                  		xra 	a
-      68/      84 : 5D                  		out		TVPort
-      69/      85 : C8                  		mov 	b,a
-      70/      86 :                     TVTLoop:
-      71/      86 : C1                  		mov 	a,b										; get number
-      72/      87 : 34 80               		ori 	080h									; set bit 7
-      73/      89 : 5D                  		out 	TVPort 									; write to TVT
-      74/      8A : A8                  		xra 	a
-      75/      8B : 5D                  		out 	TVPort
-      76/      8C : 08                  		inr 	b 										; next char
-      77/      8D : 48 86 00            		jnz 	TVTLoop
-      78/      90 : 00                  		hlt
-      79/      91 :                     
-      80/      91 :                     ; *****************************************************************************************************
-      81/      91 :                     ;										Keyboard to Memory
-      82/      91 :                     ; *****************************************************************************************************
-      83/      91 :                     
-      84/      98 :                     		org		0230o
-      85/      98 :                     KBToMemory:
-      86/      98 : 36 00               		mvi 	l,0 									; point HL to $100
-      87/      9A : 2E 01               		mvi 	h,1
-      88/      9C :                     KBToMemoryLoop:
-      89/      9C : 41                  		in 		KeyboardPort 							; wait for keyboard press
-      90/      9D : 3C 80               		cpi 	0200o 									; bit 7 high
-      91/      9F : 60 9C 00            		jc 		KBToMemoryLoop 							; keep going until it is.
-      92/      A2 : C0                  		nop												; wait for sync.
-      93/      A3 : C0                  		nop
-      94/      A4 : F8                  		mov 	m,a 									; save to memory
-      95/      A5 :                     
-      96/      A5 : 0E 00               		mvi 	b,0 									; delay makes sure the keyboard strobe is clear.
-      97/      A7 :                     KBStrobe:
-      98/      A7 : 08                  		inr 	b
-      99/      A8 : 48 A7 00            		jnz 	KBStrobe
-     100/      AB :                     
-     101/      AB : C6                  		mov 	a,l 									; write L to the display LEDs
-     102/      AC : 5F                  		out 	15
-     103/      AD : 30                  		inr 	l 										; next byte
-     104/      AE : 48 9C 00            		jnz 	KBToMemoryLoop 							
-     105/      B1 : 28                  		inr 	h 										; next page
-     106/      B2 : C5                  		mov 	a,h 									; reached page 3 ?
-     107/      B3 : 3C 03               		cpi 	3
-     108/      B5 : 48 9C 00            		jnz 	KBToMemoryLoop 							; if no, try again.
-     109/      B8 : 00                  		hlt 	
-     110/      B9 :                     
-     111/      B9 :                     ; *****************************************************************************************************
-     112/      B9 :                     ;											Running TV Display
-     113/      B9 :                     ; *****************************************************************************************************
-     114/      B9 :                     
-     115/     200 :                     		org 	01000o
-     116/     200 :                     RunningDisplay:
-     117/     200 : 46 40 06            		call 	HomeErase
-     118/     203 : 26 68               		mvi 	e,0150o
-     119/     205 : 46 51 06            		call 	Spacer
-     120/     208 : 2E 02               		mvi 	h,RDMessage / 256
- AS V1.42 Beta [Bld 102] - source file test.asm - page 3 - 10/26/2015 10:07:46
+      61/      15 : E0                  		mov 	e,a 											; save new value in E
+      62/      16 : C3                  		mov 	a,d 											; multiply D by 10
+      63/      17 : 80                  		add 	a
+      64/      18 : 80                  		add 	a
+      65/      19 : 83                  		add 	d 												; A is now D x 5
+      66/      1A : 80                  		add 	a 												; A is now D x 10
+      67/      1B : 84                  		add 	e 												; add the new digit.
+      68/      1C : D8                  		mov 	d,a 											; put back in D.
+      69/      1D :                     NextCharacter:
+      70/      1D : 0D                  		rst 	GetNextCharacter 								; get next character.
+      71/      1E : 14 3A               		sui 	58 												; 58 - 127 are ALL variables.
+      72/      20 : 50 47 00            		jp  	__IsVariable
+      73/      23 : 04 0A               		adi 	10 												; 0-9 for digits.
+      74/      25 : 50 15 00            		jp 		AddDigit 										; if that, add to current right and goback.
+      75/      28 : 04 06               		adi 	6 												; 0-5 for * + , - . /
+      76/      2A : E0                  		mov 	e,a 											; save next operator in E.
+      77/      2B : 46 52 00            		call 	SubEvaluator 									; do operation 0-5.
+      78/      2E : C8                  		mov 	b,a 											; save the result in B
+      79/      2F : 1E 00               		mvi 	d,0  											; clear the right hand side.
+      80/      31 : D4                  		mov 	c,e 											; put next operator in C 
+      81/      32 : C2                  		mov 	a,c 											; look at that operator
+      82/      33 : B0                  		ora 	a 												; if +ve loop back next calculation
+      83/      34 : 50 1D 00            		jp 		NextCharacter 
+      84/      37 : 31                  		dcr  	l 												; gone too far, go back one.
+      85/      38 :                     
+      86/      38 : C1                  		mov 	a,b 											; get result to set up program pointer.
+      87/      39 : 34 80               		ori 	080h 											; set bit 7 , which will be bit 5 if shift x 2
+      88/      3B : 1A                  		rar 													; also CC for this.
+      89/      3C : E0                  		mov 	e,a 											; put shifted right once into E.
+      90/      3D : C3                  		mov 	a,d 											; D is already zero, why it is ED not DE
+      91/      3E : 1A                  		rar  													; will clear C again.
+      92/      3F : D8                  		mov 	d,a  									
+      93/      40 : C4                  		mov 	a,e 											; now shift ED right once more.
+      94/      41 : 1A                  		rar
+      95/      42 : E0                  		mov 	e,a
+      96/      43 : C3                  		mov 	a,d
+      97/      44 : 1A                  		rar
+      98/      45 : D8                  		mov		d,a
+      99/      46 :                     
+     100/      46 : 07                  		ret
+     101/      47 :                     ;
+     102/      47 :                     ;		Contains 0-69 which are the variables.
+     103/      47 :                     ;		
+     104/      47 :                     __IsVariable:
+     105/      47 : E6                  		mov 	e,l 											; save L in E
+     106/      48 : F0                  		mov 	l,a 											; L is variable index
+     107/      49 : C5                  		mov 	a,h 											; save H in A
+     108/      4A : 2E 08               		mvi 	h,VariablePage/256 								; HL points to variable
+     109/      4C : DF                  		mov 	d,m 											; read value into D
+     110/      4D : E8                  		mov 	h,a 											; restore HL from AE
+     111/      4E : F4                  		mov 	l,e
+     112/      4F : 44 1D 00            		jmp 	NextCharacter 									; and get the next character
+     113/      52 :                     ;
+     114/      52 :                     ;	We want to do B <op:D> C D = 0:* 1:+ 2:, 3:- 4:. 5:/ into A - don't change E 
+     115/      52 :                     ;
+     116/      52 :                     SubEvaluator:
+     117/      52 : 11                  		dcr 	c 												; check for multiply (0:*)
+     118/      53 : 70 76 00            		jm 		__SEMultiply 
+     119/      56 : C1                  		mov 	a,b 											; work out add (1:+)
+     120/      57 : 83                  		add 	d
+ AS V1.42 Beta [Bld 114] - source file test.asm - page 3 - 8/12/2016 9:58:01
 
 
-     121/     20A : 36 42               		mvi 	l,RDMessage & 255
-     122/     20C : 26 12               		mvi 	e,022o
-     123/     20E : 46 5B 06            		call 	Writer
-     124/     211 :                     ;		call 	Timer
-     125/     211 : 2E 00               		mvi 	h,0 									; HL to 340
-     126/     213 : 36 E0               		mvi 	l,0340o
-     127/     215 : 06 A0               		mvi 	a,0240o						
-     128/     217 : F8                  RDFill:	mov 	m,a 									; fill 340 to 377
-     129/     218 : 30                  		inr 	l
-     130/     219 : 48 17 02            		jnz 	RDFill
-     131/     21C :                     
-     132/     21C :                     RDMainLoop:
-     133/     21C : 1E E1               		mvi 	d,0341o									; D points to 341
-     134/     21E : 41                  RDKey:	in 	 	KeyboardPort 							; get key
-     135/     21F : 3C 80               		cpi 	200o
-     136/     221 : 60 1E 02            		jc 		RDKey
-     137/     224 : E0                  		mov 	e,a 									; save key in E
-     138/     225 :                     
-     139/     225 :                     RDShift:
-     140/     225 : F3                  		mov 	l,d 									; HL points to buffer
-     141/     226 : C7                  		mov 	a,m 									; make room in buffer
-     142/     227 : 31                  		dcr 	l
-     143/     228 : F8                  		mov 	m,a 
-     144/     229 : 18                  		inr 	d
-     145/     22A : 48 25 02            		jnz 	RDShift
-     146/     22D : 36 FF               		mvi 	l,0377o 								; character in end of buffer		
-     147/     22F : FC                  		mov 	m,e
-     148/     230 :                     
-     149/     230 : 06 FF               		mvi 	a,0377o 								; home cursor
-     150/     232 : 5D                  		out 	TVPort
-     151/     233 : A8                  		xra 	a
-     152/     234 : 5D                  		out 	TVPort
-     153/     235 :                     
-     154/     235 : 36 E0               		mvi 	l,340o 									; point L to typed string
-     155/     237 :                     RDOutText:												; output the buffer.
-     156/     237 : C7                  		mov 	a,m
-     157/     238 : 5D                  		out 	TVPort
-     158/     239 : A8                  		xra 	a
-     159/     23A : 5D                  		out 	TVPort
-     160/     23B : 30                  		inr 	l
-     161/     23C : 48 37 02            		jnz 	RDOutText
-     162/     23F : 44 1C 02            		jmp 	RDMainLoop
-     163/     242 :                     
-     164/     242 :                     RDMessage:
-     165/     242 : 52 75 6E 6E 69 6E   		db	 	"Running TV Display"
-                    67 20 54 56 20 44 
-                    69 73 70 6C 61 79 
-     166/     254 :                     
-     167/     254 :                     ; *****************************************************************************************************
-     168/     254 :                     ;								Cassette Dumper (Read into memory)
-     169/     254 :                     ; *****************************************************************************************************
-     170/     254 :                     
-     171/     600 :                     		org 	03000o
-     172/     600 :                     
-     173/     600 :                     CassetteRead:
-     174/     600 : 2E 00               		mvi 	h,0										; put start address intl HL
-     175/     602 : 36 00               		mvi 	l,0
-     176/     604 :                     CRNextByte:
-     177/     604 : 16 08               		mvi 	c,8 									; bits to read in
-     178/     606 : 1E 00               		mvi 	d,0										; byte read in
- AS V1.42 Beta [Bld 102] - source file test.asm - page 4 - 10/26/2015 10:07:46
-
-
-     179/     608 :                     CRWaitStartBit:
-     180/     608 : 43                  		in 		CassetteInputPort 						; check level
-     181/     609 : 24 01               		ani 	1
-     182/     60B : 48 08 06            		jnz 	CRWaitStartBit 							; read until a bit '0' found (start bit)
-     183/     60E : 0E 01               		mvi 	b,CWBitLength * 3 / 2 					; time till half way through next bit - stablised
-     184/     610 :                     CRWaitBit0:
-     185/     610 : 09                  		dcr 	b
-     186/     611 : 48 10 06            		jnz 	CRWaitBit0
-     187/     614 :                     
-     188/     614 :                     CRGetNextBit:
-     189/     614 : 43                  		in 		CassetteInputPort 						; read bit into A
-     190/     615 : 83                  		add 	d 										; add to D
-     191/     616 : 0A                  		rrc 											; rotate right circularly.
-     192/     617 : D8                  		mov 	d,a 									; put back in D.
-     193/     618 :                     
-     194/     618 : 0E 01               		mvi 	b,CWBitLength 							; go to next bit
-     195/     61A :                     CRWaitNextBit:
-     196/     61A : 09                  		dcr 	b
-     197/     61B : 48 1A 06            		jnz 	CRWaitNextBit
-     198/     61E : 11                  		dcr 	c 										; read all 8 bits of byte in.
-     199/     61F : 48 14 06            		jnz 	CRGetNextBit 							; no, go till complete.
-     200/     622 : FB                  		mov 	m,d 									; store result in.
-     201/     623 : 30                  		inr 	l 										; increment Low ptr
-     202/     624 : 48 04 06            		jnz 	CRNextByte
-     203/     627 : 28                  		inr 	h
-     204/     628 : C5                  		mov 	a,h 									; read all in (1024 bytes)
-     205/     629 : 3C 04               		cpi 	4
-     206/     62B : 48 04 06            		jnz 	CRNextByte
-     207/     62E : 00                  		hlt
-     208/     62F :                     
-     209/     62F :                     ; *****************************************************************************************************
-     210/     62F :                     ;										Utility functions
-     211/     62F :                     ; *****************************************************************************************************
-     212/     62F :                     
-     213/     640 :                     		org 	03100o
-     214/     640 :                     HomeErase:												; clear screen home cursor
-     215/     640 : 06 FF               		mvi 	a,0FFh
-     216/     642 : 5D                  		out 	TVPort
-     217/     643 : A8                  		xra 	a
-     218/     644 : C8                  		mov 	b,a
-     219/     645 : 5D                  		out 	TVPort
-     220/     646 : 5F                  		out 	15
-     221/     647 :                     HELoop:
-     222/     647 : 06 A0               		mvi 	a,0240o
-     223/     649 : 5D                  		out 	TVPort
-     224/     64A : A8                  		xra 	a
-     225/     64B : 5D                  		out 	TVPort
-     226/     64C : 08                  		inr 	b
-     227/     64D : 48 47 06            		jnz 	HELoop
-     228/     650 : 07                  		ret
-     229/     651 :                     
-     230/     651 :                     Spacer:													; print E spaces
-     231/     651 : 06 A0               		mvi 	a,0240o
-     232/     653 : 5D                  		out 	TVPort
-     233/     654 : A8                  		xra 	a
-     234/     655 : 5D                  		out 	TVPort
-     235/     656 : 21                  		dcr 	e
-     236/     657 : 48 51 06            		jnz 	Spacer
-     237/     65A : 07                  		ret
-     238/     65B :                     
- AS V1.42 Beta [Bld 102] - source file test.asm - page 5 - 10/26/2015 10:07:46
-
-
-     239/     65B :                     Writer:													; print string at HL length D
-     240/     65B : C7                  		mov 	a,m
-     241/     65C : 34 80               		ori 	080h									; **** added so we can use DS, bit 7 not set.
-     242/     65E : 5D                  		out 	TVPort
-     243/     65F : A8                  		xra 	a
-     244/     660 : 5D                  		out 	TVPort
-     245/     661 : 30                  		inr 	l
-     246/     662 : 21                  		dcr 	e
-     247/     663 : 48 5B 06            		jnz 	Writer
-     248/     666 : 07                  		ret
-     249/     667 :                     
-     250/     668 :                     		org 	03150o
-     251/     668 : 44 75 6D 70 65 64   		db 		"Dumped OK"
-                    20 4F 4B 
-     252/     671 :                     
-     253/     672 :                     		org 	03162o
-     254/     672 :                     
-     255/     672 : 0E 00               Timer:	mvi 	b,0 									; delay of about 5 seconds.
-     256/     674 : 16 00               		mvi 	c,0
-     257/     676 :                     TMRLoop:
-     258/     676 : 10                  		inr 	c
-     259/     677 : 48 76 06            		jnz 	TMRLoop
-     260/     67A : 08                  		inr 	b
-     261/     67B : 48 76 06            		jnz 	TMRLoop
-     262/     67E : 07                  		ret
-     263/     67F :                     
-     264/     67F :                     ; *****************************************************************************************************
-     265/     67F :                     ;						Cassette Loader (Note, loads ONTO cassette)
-     266/     67F :                     ; *****************************************************************************************************
-     267/     67F :                     
-     268/     680 :                     		org 	3200o
-     269/     680 :                     CassetteWrite:
-     270/     680 : 06 01               		mvi 	a,1										; cassette out on
-     271/     682 : 51                  		out 	CassetteOutputPort 
-     272/     683 : C0                  		nop
-     273/     684 : 0E 01               		mvi 	b,CWWriteHeader & 255 					; writeheader -> BC
-     274/     686 : 16 01               		mvi 	c,CWWriteHeader / 256
-     275/     688 :                     CWHeader: 												; write the header out, pausing.
-     276/     688 : 11                  		dcr 	c
-     277/     689 : 48 88 06            		jnz 	CWHeader
-     278/     68C : 09                  		dcr 	b
-     279/     68D : 48 88 06            		jnz 	CWHeader
-     280/     690 :                     
-     281/     690 : 2E 00               		mvi 	h,0 									; HL to start $0000
-     282/     692 : 36 00               		mvi 	l,0
-     283/     694 : 1E 03               		mvi 	d,3 									; DE to end $3FFF
-     284/     696 : 26 FF               		mvi 	e,0377o
-     285/     698 :                     
-     286/     698 :                     CWMainLoop:
-     287/     698 : 16 09               		mvi 	c,011o 									; C = %00 001 001
-     288/     69A :                     
-     289/     69A : C2                  		mov 	a,c 									; retrieve C
-     290/     69B : 12                  		ral 											; rotate left through carry (first time C = 0)
-     291/     69C : C7                  		mov 	a,m 									; read location to write out.
-     292/     69D : 12                  		ral 											; put msb bit into carry,  0 into bit 0
-     293/     69E :                     CWNextBitOut:
-     294/     69E : 51                  		out 	CassetteOutputPort 						; write to tape output (0 first time)
-     295/     69F : 0E 01               		mvi 	b,CWBitLength
-     296/     6A1 :                     CWBitDelay:												; time to write the bit to tape.
-     297/     6A1 : 09                  		dcr 	b
- AS V1.42 Beta [Bld 102] - source file test.asm - page 6 - 10/26/2015 10:07:46
-
-
-     298/     6A2 : 48 A1 06            		jnz 	CWBitDelay
-     299/     6A5 : 1A                  		rar 											; rotate byte right (first time, byte is back)
-     300/     6A6 : 11                  		dcr 	c 										; done it 9 times (1 start bit [0], 8 data bits)
-     301/     6A7 : 48 9E 06            		jnz 	CWNextBitOut 							; no, go back and try again.	
-     302/     6AA :                     
-     303/     6AA : 06 01               		mvi 	a,1										; tape out back on which is the default state
-     304/     6AC : 51                  		out 	CassetteOutputPort
-     305/     6AD : 0E 01               		mvi 	b,CWByteSpacing							; spacing delay
-     306/     6AF :                     CWSpacing:	
-     307/     6AF : 09                  		dcr 	b
-     308/     6B0 : 48 AF 06            		jnz 	CWSpacing
-     309/     6B3 :                     
-     310/     6B3 : C5                  		mov 	a,h 									; check if done all the writing
-     311/     6B4 : BB                  		cmp 	d
-     312/     6B5 : 68 C0 06            		jz 		CWCheckEnd
-     313/     6B8 :                     
-     314/     6B8 : 30                  		inr 	l 										; go to next byte.
-     315/     6B9 : 48 98 06            		jnz 	CWMainLoop
-     316/     6BC : 28                  		inr 	h
-     317/     6BD : 44 98 06            		jmp 	CWMainLoop
-     318/     6C0 :                     
-     319/     6C0 :                     CWCheckEnd:
-     320/     6C0 : C6                  		mov 	a,l 									; do LSBs match ?
-     321/     6C1 : BC                  		cmp 	e
-     322/     6C2 : 68 C9 06            		jz 		CWCompleted
-     323/     6C5 : 30                  		inr 	l 										; no , inc l only required.
-     324/     6C6 : 44 98 06            		jmp 	CWMainLoop
-     325/     6C9 :                     
-     326/     6C9 :                     CWCompleted:
-     327/     6C9 : 16 01               		mvi 	c,CWTrailerCount/256 					; write the end header
-     328/     6CB : 0E 01               		mvi 	b,CWTrailerCount&255
-     329/     6CD :                     CWTrailer:
-     330/     6CD : 09                  		dcr 	b
-     331/     6CE : 48 CD 06            		jnz 	CWTrailer
-     332/     6D1 : 11                  		dcr 	c
-     333/     6D2 : 48 CD 06            		jnz 	CWTrailer
-     334/     6D5 : A8                  		xra 	a
-     335/     6D6 : 51                  		out		CassetteOutputPort 						; cassette o/p off
-     336/     6D7 : 00                  		hlt
-     337/     6D8 :                     
-     338/     6D8 :                     ; *****************************************************************************************************
-     339/     6D8 :                     ;								Cassette Dumper (Read into memory)
-     340/     6D8 :                     ; *****************************************************************************************************
-     341/     6D8 :                     
-     342/     6D8 :                     		align 	256
-     343/     700 :                     
-     344/     700 :                     CassetteRead2:
-     345/     700 : 2E 00               		mvi 	h,0										; put start address $0000 into HL
-     346/     702 : 36 00               		mvi 	l,0 									; (not needed if run from boot)
-     347/     704 : 1E 04               		mvi 	d,4 									; number of pages to load.
-     348/     706 :                     
-     349/     706 :                     C2NextByte:
-     350/     706 : 16 08               		mvi 	c,8 									; bits to read in
-     351/     708 : 3E 00               		mvi	 	m,0										; byte read in (H is always zero)
-     352/     70A :                     
-     353/     70A :                     C2WaitStartBit:
-     354/     70A : 43                  		in 		CassetteInputPort 						; check level which is in cassette bit 0
-     355/     70B : 0A                  		rrc
-     356/     70C : 60 0A 07            		jc 		C2WaitStartBit 							; read until a bit '0' found (start bit)
-     357/     70F : 0E 01               		mvi 	b,CWBitLength * 3 / 2 					; time till half way through next bit - stablised
- AS V1.42 Beta [Bld 102] - source file test.asm - page 7 - 10/26/2015 10:07:46
-
-
-     358/     711 :                     C2WaitBit:												; short delay till next bit sampled.
-     359/     711 : 09                  		dcr 	b
-     360/     712 : 48 11 07            		jnz 	C2WaitBit
-     361/     715 :                     
-     362/     715 : 43                  		in 		CassetteInputPort 						; read bit into A
-     363/     716 : 87                  		add 	m 										; add to M (current value)
-     364/     717 : 0A                  		rrc 											; rotate right circularly.
-     365/     718 : F8                  		mov 	m,a 									; put back in M.
-     366/     719 :                     
-     367/     719 : 0E 01               		mvi 	b,CWBitLength 							; set delay till next bit
-     368/     71B : 11                  		dcr 	c 										; read all 8 bits of byte in.
-     369/     71C : 48 11 07            		jnz 	C2WaitBit 								; no, go till complete.
-     370/     71F :                     
-     371/     71F : 30                  		inr 	l 										; increment Low ptr
-     372/     720 : 48 06 07            		jnz 	C2NextByte
-     373/     723 : 05                  		rst 	0
-     374/     724 :                     
-     375/     724 : 28                  		inr 	h 										; increment High ptr
-     376/     725 : 19                  		dcr 	d 										; decrement page-to-load counter
-     377/     726 : 48 06 07            		jnz 	C2NextByte
-     378/     729 : 00                  		hlt
-     379/     72A :                     
-     380/     72A :                     ; *****************************************************************************************************
-     381/     72A :                     ;								Cassette Dumper (Read into memory)
-     382/     72A :                     ;
-     383/     72A :                     ;	This fits into a single 32x8 8223 ROM. It is identical in format to the 2 ROM Cassette Dumper
-     384/     72A :                     ;	but it only loads 256 bytes into Page 0, after which it transfers control to the code at Page 0
-     385/     72A :                     ;
-     386/     72A :                     ;	The core of the code is identical to Dr. Suding's but it removes duplicate code and simplifies
-     387/     72A :                     ;	removing one delay loop and the final h-register test.
-     388/     72A :                     ;
-     389/     72A :                     ;	Effectively it is a double-boot loader ; it loads either a short program or a more complex tape
-     390/     72A :                     ;	loader which could have check summing and loading into different pages.
-     391/     72A :                     ;
-     392/     72A :                     ;	It is exactly 32 bytes long. 
-     393/     72A :                     ;
-     394/     72A :                     ; *****************************************************************************************************
-     395/     72A :                     
-     396/     72A :                     		align 	256
-     397/     800 :                     
-     398/     800 :                     CassetteRead32Byte:
-     399/     800 : 2E 00               		mvi 	h,0										; put start address $0000 into HL
-     400/     802 : F5                  		mov 	l,h 									; (not needed if run from boot)
-     401/     803 :                     
-     402/     803 :                     C3NextByte:
-     403/     803 : 16 08               		mvi 	c,8 									; bits to read in
-     404/     805 : FD                  		mov	 	m,h										; byte read in (H is always zero)
-     405/     806 :                     
-     406/     806 :                     C3WaitStartBit:
-     407/     806 : 43                  		in 		CassetteInputPort 						; check level which is in cassette bit 0
-     408/     807 : 0A                  		rrc
-     409/     808 : 60 06 08            		jc 		C3WaitStartBit 							; read until a bit '0' found (start bit)
-     410/     80B : 0E 01               		mvi 	b,CWBitLength * 3 / 2 					; time till half way through next bit - stablised
-     411/     80D :                     C3WaitBit:												; short delay till next bit sampled.
-     412/     80D : 09                  		dcr 	b
-     413/     80E : 48 0D 08            		jnz 	C3WaitBit
-     414/     811 :                     
-     415/     811 : 43                  		in 		CassetteInputPort 						; read bit into A
-     416/     812 : 87                  		add 	m 										; add to M (current value)
-     417/     813 : 0A                  		rrc 											; rotate right circularly.
- AS V1.42 Beta [Bld 102] - source file test.asm - page 8 - 10/26/2015 10:07:46
-
-
-     418/     814 : F8                  		mov 	m,a 									; put back in M.
-     419/     815 :                     
-     420/     815 : 0E 01               		mvi 	b,CWBitLength 							; set delay till next bit
-     421/     817 : 11                  		dcr 	c 										; read all 8 bits of byte in.
-     422/     818 : 48 0D 08            		jnz 	C3WaitBit 								; no, go till complete.
-     423/     81B :                     
-     424/     81B : 30                  		inr 	l 										; increment Low ptr
-     425/     81C : 48 03 08            		jnz 	C3NextByte
-     426/     81F : 05                  		rst 	0										; "jmp 0000" - in one instruction.
-     427/     820 :                     		
-     428/     820 :                     
- AS V1.42 Beta [Bld 102] - source file test.asm - page 9 - 10/26/2015 10:07:46
+     121/      58 : 11                  		dcr 	c
+     122/      59 : 33                  		rm 
+     123/      5A : C1                  		mov 	a,b 											; work out logical xor (2:,)
+     124/      5B : AB                  		xra 	d
+     125/      5C : 11                  		dcr 	c
+     126/      5D : 33                  		rm 
+     127/      5E : C1                  		mov 	a,b 											; work out subtract (3:-)
+     128/      5F : 93                  		sub 	d
+     129/      60 : 11                  		dcr 	c
+     130/      61 : 33                  		rm
+     131/      62 : C1                  		mov 	a,b 											; work out and (4:.)
+     132/      63 : A3                  		ana 	d
+     133/      64 : 11                  		dcr 	c
+     134/      65 : 33                  		rm
+     135/      66 :                     																; so it must be divide (5:/)
+     136/      66 : 46 6B 00            		call 	__SEDivide 										; the result is in C so saves a jump.
+     137/      69 : C2                  		mov 	a,c
+     138/      6A : 07                  		ret
+     139/      6B :                     ;
+     140/      6B :                     ;	subtractive division.
+     141/      6B :                     ;
+     142/      6B :                     __SEDivide:	
+     143/      6B : C3                  		mov 	a,d 											; check divide by zero.
+     144/      6C : B0                  		ora 	a 
+     145/      6D : 2B                  		rz  													; will return $FF
+     146/      6E : C1                  		mov 	a,b 											; subtract D from this N times. C = 0
+     147/      6F :                     __SEDivide1:
+     148/      6F : 93                  		sub 	d
+     149/      70 : 23                  		rc
+     150/      71 : 10                  		inr 	c
+     151/      72 : 2B                  		rz
+     152/      73 : 44 6F 00            		jmp 	__SEDivide1
+     153/      76 :                     ;
+     154/      76 :                     ;	additive multiply
+     155/      76 :                     ;
+     156/      76 :                     __SEMultiply:	
+     157/      76 : A8                  		xra 	a 												; total. (*0 becomes *256)
+     158/      77 :                     __SEMultiply1:		
+     159/      77 : 81                  		add 	b 												; add B to 0 D times.
+     160/      78 : 19                  		dcr 	d
+     161/      79 : 48 77 00            		jnz 	__SEMultiply1
+     162/      7C : 07                  		ret
+     163/      7D :                     
+ AS V1.42 Beta [Bld 114] - source file test.asm - page 4 - 8/12/2016 9:58:01
 
 
   symbol table (* = unused):
   ------------------------
 
-*ARCHITECTURE :  i386-unknown-win32 - | *BIGENDIAN :                      0 - |
-*BRANCHEXT :                      0 - |  C2NEXTBYTE :                   706 C |
- C2WAITBIT :                    711 C |  C2WAITSTARTBIT :               70A C |
- C3NEXTBYTE :                   803 C |  C3WAITBIT :                    80D C |
- C3WAITSTARTBIT :               806 C | *CASESENSITIVE :                  0 - |
- CASSETTEINPUTPORT :              1 - |  CASSETTEOUTPUTPORT :             8 - |
-*CASSETTEREAD :                 600 C | *CASSETTEREAD2 :                700 C |
-*CASSETTEREAD32BYTE :           800 C | *CASSETTEWRITE :                680 C |
-*CONSTPI :        3.141592653589793 - |  COUNTER :                       39 C |
- CRGETNEXTBIT :                 614 C |  CRNEXTBYTE :                   604 C |
- CRWAITBIT0 :                   610 C |  CRWAITNEXTBIT :                61A C |
- CRWAITSTARTBIT :               608 C |  CWBITDELAY :                   6A1 C |
- CWBITLENGTH :                    1 - |  CWBYTESPACING :                  1 - |
- CWCHECKEND :                   6C0 C |  CWCOMPLETED :                  6C9 C |
- CWHEADER :                     688 C |  CWMAINLOOP :                   698 C |
- CWNEXTBITOUT :                 69E C |  CWSPACING :                    6AF C |
- CWTRAILER :                    6CD C |  CWTRAILERCOUNT :               101 - |
- CWWRITEHEADER :                101 - | *DATE :                  10/26/2015 - |
+ ADDDIGIT :                      15 C |
+*ARCHITECTURE :                                        x86_64-unknown-linux - |
+*BIGENDIAN :                      0 - | *BRANCHEXT :                      0 - |
+*CASESENSITIVE :                  0 - | *CONSTPI :        3.141592653589793 - |
+*DATE :                   8/12/2016 - |  EVALUATE :                      10 C |
 *FALSE :                          0 - | *FULLPMMU :                       1 - |
-*HAS64 :                          1 - | *HASDSP :                         0 - |
-*HASFPU :                         0 - | *HASPMMU :                        0 - |
- HELOOP :                       647 C |  HOMEERASE :                    640 C |
-*INEXTMODE :                      0 - | *INLWORDMODE :                    0 - |
-*INMAXMODE :                      0 - | *INSRCMODE :                      0 - |
-*INSUPMODE :                      0 - |  KBSTROBE :                      A7 C |
- KBTOMEMORY :                    98 C |  KBTOMEMORYLOOP :                9C C |
- KEYBOARDPORT :                   0 - | *LISTON :                         1 - |
+ GETNEXTCHARACTER :               8 C | *HAS64 :                          1 - |
+*HASDSP :                         0 - | *HASFPU :                         0 - |
+*HASPMMU :                        0 - | *INEXTMODE :                      0 - |
+*INLWORDMODE :                    0 - | *INMAXMODE :                      0 - |
+*INPUTPAGE :                    900 - | *INSRCMODE :                      0 - |
+*INSUPMODE :                      0 - | *LISTON :                         1 - |
 *MACEXP :                         1 - | *MOMCPU :                     8008E - |
 *MOMCPUNAME :               8008NEW - | *NESTMAX :                      100 - |
-*PACKING :                        0 - | *PADDING :                        1 - |
- RDFILL :                       217 C |  RDKEY :                        21E C |
- RDMAINLOOP :                   21C C |  RDMESSAGE :                    242 C |
- RDOUTTEXT :                    237 C |  RDSHIFT :                      225 C |
-*RELAXED :                        0 - |  RUNNINGDISPLAY :               200 C |
- SPACER :                       651 C |  SPDEC :                         2A C |
-*SPEEDING :                      11 C |  SPNEXT :                        14 C |
- SPPAINT :                       1D C | *TIME :                    10:07:46 - |
-*TIMER :                        672 C |  TMRLOOP :                      676 C |
-*TRUE :                           1 - |  TVPORT :                         E - |
- TVTEST :                        80 C |  TVTLOOP :                       86 C |
-*VERSION :                     142F - |  WRITER :                       65B C |
+ NEXTCHARACTER :                 1D C | *PACKING :                        0 - |
+*PADDING :                        1 - | *PROGRAMMEMORY :               2000 - |
+*RELAXED :                        0 - |  STOP :                         70B C |
+ SUBEVALUATOR :                  52 C |  SUM :                          70E C |
+*TIME :                     9:58:01 - | *TRUE :                           1 - |
+ VARIABLEPAGE :                 800 - | *VERSION :                     142F - |
+ __ISVARIABLE :                  47 C |  __SEDIVIDE :                    6B C |
+ __SEDIVIDE1 :                   6F C |  __SEMULTIPLY :                  76 C |
+ __SEMULTIPLY1 :                 77 C |
 
-     82 symbols
-     34 unused symbols
+     43 symbols
+     30 unused symbols
 
- AS V1.42 Beta [Bld 102] - source file test.asm - page 10 - 10/26/2015 10:07:46
+ AS V1.42 Beta [Bld 114] - source file test.asm - page 5 - 8/12/2016 9:58:01
 
 
   codepages:
@@ -513,9 +212,9 @@
 STANDARD (0 changed characters)
 
 
-0.01 seconds assembly time
+0.00 seconds assembly time
 
-    428 lines source file
+    163 lines source file
       2 passes
       0 errors
       0 warnings

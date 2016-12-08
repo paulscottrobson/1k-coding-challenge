@@ -1,427 +1,164 @@
 	
 		cpu		8008new
 
-TVPort = 0eh
-CassetteOutputPort = 08h
-CassetteInputPort = 01h
-KeyboardPort = 00h
 
-CWWriteHeader = 0101h 									; header loop count ($FFFF)
-CWTrailerCount = 0101h 									; trailer loop count ($7FFF)
-CWBitLength = 01o 										; length of one bit write. (40o)
-CWByteSpacing = 01o 									; gap between bytes. (100o)
+VariablePage = 0800h 											; this page has variables offset from ASCII 58
+InputPage = 0900h 												; text input goes here.
+ProgramMemory = 2000h 											; 127 program lines go here. 64 bytes each.
 
 		org 	0
-		rst 	8
-		db 		255
+		jmp 	0700h
+
+		org 	0700h
+		mvi 	h,VariablePage/256
+		mvi 	l,7
+		mvi 	m,37
+
+		mvi 	h,Sum / 256
+		mvi 	l,Sum & 255
+		rst 	Evaluate
+Stop:	jmp 	Stop
+
+Sum:
+		db 		"7",0
+
+
+; ***********************************************************************************************
+; ***********************************************************************************************
+;
+;		Routine : 8 bytes. Read next non space character from (HL)
+;
+; ***********************************************************************************************
+; ***********************************************************************************************
+
 		org 	8
-		;jmp 	Speeding
-		;jmp	CassetteRead2	
-		;jmp 	CassetteWrite
-		jmp 	RunningDisplay
-		jmp 	KBToMemory
-		jmp 	TVTest
-
-;		db		"Hello world !!!!!"
-;		db 		0,1,2,3,4,5
-;		db 		255,254,253,252,251
-
-Speeding:
-		call 	HomeErase
-SPNext:
-		mvi 	h,Counter/256
-		mvi 	l,Counter&255
-		mvi 	a,0FFh
-		out 	TVPort
-		xra 	a
-		out 	TVPort
-SPPaint:mov 	a,m
-		ori 	080h!'0'
-		out 	TVPort
-		xra 	a
-		out 	TVPort
-		inr 	l
-		mov 	a,l
-		cpi 	(Counter&255)+8
-		jnz 	SPPaint
-SPDec:	dcr 	l
-		mov 	a,m
-		adi 	1
-		mov 	m,a
-		cpi 	10
-		jnz 	SPNext
-		mvi 	m,0
-		jmp 	SPDec
-
-
-Counter:
-
-; *****************************************************************************************************
-;									TV Character Generator Test
-; *****************************************************************************************************
-
-		org 	0200o
-TVTest:
-		mvi 	a,0FFh									; home cursor first time (0xFF)
-		out 	TVPort
-		xra 	a
-		out		TVPort
-		mov 	b,a
-TVTLoop:
-		mov 	a,b										; get number
-		ori 	080h									; set bit 7
-		out 	TVPort 									; write to TVT
-		xra 	a
-		out 	TVPort
-		inr 	b 										; next char
-		jnz 	TVTLoop
-		hlt
-
-; *****************************************************************************************************
-;										Keyboard to Memory
-; *****************************************************************************************************
-
-		org		0230o
-KBToMemory:
-		mvi 	l,0 									; point HL to $100
-		mvi 	h,1
-KBToMemoryLoop:
-		in 		KeyboardPort 							; wait for keyboard press
-		cpi 	0200o 									; bit 7 high
-		jc 		KBToMemoryLoop 							; keep going until it is.
-		nop												; wait for sync.
-		nop
-		mov 	m,a 									; save to memory
-
-		mvi 	b,0 									; delay makes sure the keyboard strobe is clear.
-KBStrobe:
-		inr 	b
-		jnz 	KBStrobe
-
-		mov 	a,l 									; write L to the display LEDs
-		out 	15
-		inr 	l 										; next byte
-		jnz 	KBToMemoryLoop 							
-		inr 	h 										; next page
-		mov 	a,h 									; reached page 3 ?
-		cpi 	3
-		jnz 	KBToMemoryLoop 							; if no, try again.
-		hlt 	
-
-; *****************************************************************************************************
-;											Running TV Display
-; *****************************************************************************************************
-
-		org 	01000o
-RunningDisplay:
-		call 	HomeErase
-		mvi 	e,0150o
-		call 	Spacer
-		mvi 	h,RDMessage / 256
-		mvi 	l,RDMessage & 255
-		mvi 	e,022o
-		call 	Writer
-;		call 	Timer
-		mvi 	h,0 									; HL to 340
-		mvi 	l,0340o
-		mvi 	a,0240o						
-RDFill:	mov 	m,a 									; fill 340 to 377
-		inr 	l
-		jnz 	RDFill
-
-RDMainLoop:
-		mvi 	d,0341o									; D points to 341
-RDKey:	in 	 	KeyboardPort 							; get key
-		cpi 	200o
-		jc 		RDKey
-		mov 	e,a 									; save key in E
-
-RDShift:
-		mov 	l,d 									; HL points to buffer
-		mov 	a,m 									; make room in buffer
-		dcr 	l
-		mov 	m,a 
-		inr 	d
-		jnz 	RDShift
-		mvi 	l,0377o 								; character in end of buffer		
-		mov 	m,e
-
-		mvi 	a,0377o 								; home cursor
-		out 	TVPort
-		xra 	a
-		out 	TVPort
-
-		mvi 	l,340o 									; point L to typed string
-RDOutText:												; output the buffer.
-		mov 	a,m
-		out 	TVPort
-		xra 	a
-		out 	TVPort
-		inr 	l
-		jnz 	RDOutText
-		jmp 	RDMainLoop
-
-RDMessage:
-		db	 	"Running TV Display"
-
-; *****************************************************************************************************
-;								Cassette Dumper (Read into memory)
-; *****************************************************************************************************
-
-		org 	03000o
-
-CassetteRead:
-		mvi 	h,0										; put start address intl HL
-		mvi 	l,0
-CRNextByte:
-		mvi 	c,8 									; bits to read in
-		mvi 	d,0										; byte read in
-CRWaitStartBit:
-		in 		CassetteInputPort 						; check level
-		ani 	1
-		jnz 	CRWaitStartBit 							; read until a bit '0' found (start bit)
-		mvi 	b,CWBitLength * 3 / 2 					; time till half way through next bit - stablised
-CRWaitBit0:
-		dcr 	b
-		jnz 	CRWaitBit0
-
-CRGetNextBit:
-		in 		CassetteInputPort 						; read bit into A
-		add 	d 										; add to D
-		rrc 											; rotate right circularly.
-		mov 	d,a 									; put back in D.
-
-		mvi 	b,CWBitLength 							; go to next bit
-CRWaitNextBit:
-		dcr 	b
-		jnz 	CRWaitNextBit
-		dcr 	c 										; read all 8 bits of byte in.
-		jnz 	CRGetNextBit 							; no, go till complete.
-		mov 	m,d 									; store result in.
-		inr 	l 										; increment Low ptr
-		jnz 	CRNextByte
-		inr 	h
-		mov 	a,h 									; read all in (1024 bytes)
-		cpi 	4
-		jnz 	CRNextByte
-		hlt
-
-; *****************************************************************************************************
-;										Utility functions
-; *****************************************************************************************************
-
-		org 	03100o
-HomeErase:												; clear screen home cursor
-		mvi 	a,0FFh
-		out 	TVPort
-		xra 	a
-		mov 	b,a
-		out 	TVPort
-		out 	15
-HELoop:
-		mvi 	a,0240o
-		out 	TVPort
-		xra 	a
-		out 	TVPort
-		inr 	b
-		jnz 	HELoop
+GetNextCharacter:
+		mov 	a,m 											; read character.
+		inr 	l 												; and advance.
+		cpi 	' '												; if space
+		jz 		NextCharacter 									; get another one.
 		ret
 
-Spacer:													; print E spaces
-		mvi 	a,0240o
-		out 	TVPort
+; ***********************************************************************************************
+; ***********************************************************************************************
+;
+;	Routine : 109 bytes. Evaluate string at HL. Returns result in B. 
+;
+;	Operators are + - * / and , (xor) . (and). Terms are variables a-zA-Z and integer constants
+;
+;	Not awfully syntax checked :) x/0 returns 0. Technically : and up are all variables.
+;
+;	On exit HL points to found unknown character.
+; 	On exit ED points to the line number if it's a program line (that way round)
+;
+; ***********************************************************************************************
+; ***********************************************************************************************
+
+Evaluate:
 		xra 	a
-		out 	TVPort
-		dcr 	e
-		jnz 	Spacer
+		mov 	b,a 											; b is current left value
+		mov 	d,a 											; d is current right value
+		mvi 	c,1 											; c is current operator (+ = 1)
+AddDigit:
+		mov 	e,a 											; save new value in E
+		mov 	a,d 											; multiply D by 10
+		add 	a
+		add 	a
+		add 	d 												; A is now D x 5
+		add 	a 												; A is now D x 10
+		add 	e 												; add the new digit.
+		mov 	d,a 											; put back in D.
+NextCharacter:
+		rst 	GetNextCharacter 								; get next character.
+		sui 	58 												; 58 - 127 are ALL variables.
+		jp  	__IsVariable
+		adi 	10 												; 0-9 for digits.
+		jp 		AddDigit 										; if that, add to current right and goback.
+		adi 	6 												; 0-5 for * + , - . /
+		mov 	e,a 											; save next operator in E.
+		call 	SubEvaluator 									; do operation 0-5.
+		mov 	b,a 											; save the result in B
+		mvi 	d,0  											; clear the right hand side.
+		mov 	c,e 											; put next operator in C 
+		mov 	a,c 											; look at that operator
+		ora 	a 												; if +ve loop back next calculation
+		jp 		NextCharacter 
+		dcr  	l 												; gone too far, go back one.
+
+		mov 	a,b 											; get result to set up program pointer.
+		ori 	080h 											; set bit 7 , which will be bit 5 if shift x 2
+		rar 													; also CC for this.
+		mov 	e,a 											; put shifted right once into E.
+		mov 	a,d 											; D is already zero, why it is ED not DE
+		rar  													; will clear C again.
+		mov 	d,a  									
+		mov 	a,e 											; now shift ED right once more.
+		rar
+		mov 	e,a
+		mov 	a,d
+		rar
+		mov		d,a
+
 		ret
-
-Writer:													; print string at HL length D
-		mov 	a,m
-		ori 	080h									; **** added so we can use DS, bit 7 not set.
-		out 	TVPort
-		xra 	a
-		out 	TVPort
-		inr 	l
-		dcr 	e
-		jnz 	Writer
+;
+;		Contains 0-69 which are the variables.
+;		
+__IsVariable:
+		mov 	e,l 											; save L in E
+		mov 	l,a 											; L is variable index
+		mov 	a,h 											; save H in A
+		mvi 	h,VariablePage/256 								; HL points to variable
+		mov 	d,m 											; read value into D
+		mov 	h,a 											; restore HL from AE
+		mov 	l,e
+		jmp 	NextCharacter 									; and get the next character
+;
+;	We want to do B <op:D> C D = 0:* 1:+ 2:, 3:- 4:. 5:/ into A - don't change E 
+;
+SubEvaluator:
+		dcr 	c 												; check for multiply (0:*)
+		jm 		__SEMultiply 
+		mov 	a,b 											; work out add (1:+)
+		add 	d
+		dcr 	c
+		rm 
+		mov 	a,b 											; work out logical xor (2:,)
+		xra 	d
+		dcr 	c
+		rm 
+		mov 	a,b 											; work out subtract (3:-)
+		sub 	d
+		dcr 	c
+		rm
+		mov 	a,b 											; work out and (4:.)
+		ana 	d
+		dcr 	c
+		rm
+																; so it must be divide (5:/)
+		call 	__SEDivide 										; the result is in C so saves a jump.
+		mov 	a,c
 		ret
-
-		org 	03150o
-		db 		"Dumped OK"
-
-		org 	03162o
-
-Timer:	mvi 	b,0 									; delay of about 5 seconds.
-		mvi 	c,0
-TMRLoop:
+;
+;	subtractive division.
+;
+__SEDivide:	
+		mov 	a,d 											; check divide by zero.
+		ora 	a 
+		rz  													; will return $FF
+		mov 	a,b 											; subtract D from this N times. C = 0
+__SEDivide1:
+		sub 	d
+		rc
 		inr 	c
-		jnz 	TMRLoop
-		inr 	b
-		jnz 	TMRLoop
+		rz
+		jmp 	__SEDivide1
+;
+;	additive multiply
+;
+__SEMultiply:	
+		xra 	a 												; total. (*0 becomes *256)
+__SEMultiply1:		
+		add 	b 												; add B to 0 D times.
+		dcr 	d
+		jnz 	__SEMultiply1
 		ret
-
-; *****************************************************************************************************
-;						Cassette Loader (Note, loads ONTO cassette)
-; *****************************************************************************************************
-
-		org 	3200o
-CassetteWrite:
-		mvi 	a,1										; cassette out on
-		out 	CassetteOutputPort 
-		nop
-		mvi 	b,CWWriteHeader & 255 					; writeheader -> BC
-		mvi 	c,CWWriteHeader / 256
-CWHeader: 												; write the header out, pausing.
-		dcr 	c
-		jnz 	CWHeader
-		dcr 	b
-		jnz 	CWHeader
-
-		mvi 	h,0 									; HL to start $0000
-		mvi 	l,0
-		mvi 	d,3 									; DE to end $3FFF
-		mvi 	e,0377o
-
-CWMainLoop:
-		mvi 	c,011o 									; C = %00 001 001
-
-		mov 	a,c 									; retrieve C
-		ral 											; rotate left through carry (first time C = 0)
-		mov 	a,m 									; read location to write out.
-		ral 											; put msb bit into carry,  0 into bit 0
-CWNextBitOut:
-		out 	CassetteOutputPort 						; write to tape output (0 first time)
-		mvi 	b,CWBitLength
-CWBitDelay:												; time to write the bit to tape.
-		dcr 	b
-		jnz 	CWBitDelay
-		rar 											; rotate byte right (first time, byte is back)
-		dcr 	c 										; done it 9 times (1 start bit [0], 8 data bits)
-		jnz 	CWNextBitOut 							; no, go back and try again.	
-
-		mvi 	a,1										; tape out back on which is the default state
-		out 	CassetteOutputPort
-		mvi 	b,CWByteSpacing							; spacing delay
-CWSpacing:	
-		dcr 	b
-		jnz 	CWSpacing
-
-		mov 	a,h 									; check if done all the writing
-		cmp 	d
-		jz 		CWCheckEnd
-
-		inr 	l 										; go to next byte.
-		jnz 	CWMainLoop
-		inr 	h
-		jmp 	CWMainLoop
-
-CWCheckEnd:
-		mov 	a,l 									; do LSBs match ?
-		cmp 	e
-		jz 		CWCompleted
-		inr 	l 										; no , inc l only required.
-		jmp 	CWMainLoop
-
-CWCompleted:
-		mvi 	c,CWTrailerCount/256 					; write the end header
-		mvi 	b,CWTrailerCount&255
-CWTrailer:
-		dcr 	b
-		jnz 	CWTrailer
-		dcr 	c
-		jnz 	CWTrailer
-		xra 	a
-		out		CassetteOutputPort 						; cassette o/p off
-		hlt
-
-; *****************************************************************************************************
-;								Cassette Dumper (Read into memory)
-; *****************************************************************************************************
-
-		align 	256
-
-CassetteRead2:
-		mvi 	h,0										; put start address $0000 into HL
-		mvi 	l,0 									; (not needed if run from boot)
-		mvi 	d,4 									; number of pages to load.
-
-C2NextByte:
-		mvi 	c,8 									; bits to read in
-		mvi	 	m,0										; byte read in (H is always zero)
-
-C2WaitStartBit:
-		in 		CassetteInputPort 						; check level which is in cassette bit 0
-		rrc
-		jc 		C2WaitStartBit 							; read until a bit '0' found (start bit)
-		mvi 	b,CWBitLength * 3 / 2 					; time till half way through next bit - stablised
-C2WaitBit:												; short delay till next bit sampled.
-		dcr 	b
-		jnz 	C2WaitBit
-
-		in 		CassetteInputPort 						; read bit into A
-		add 	m 										; add to M (current value)
-		rrc 											; rotate right circularly.
-		mov 	m,a 									; put back in M.
-
-		mvi 	b,CWBitLength 							; set delay till next bit
-		dcr 	c 										; read all 8 bits of byte in.
-		jnz 	C2WaitBit 								; no, go till complete.
-
-		inr 	l 										; increment Low ptr
-		jnz 	C2NextByte
-		rst 	0
-
-		inr 	h 										; increment High ptr
-		dcr 	d 										; decrement page-to-load counter
-		jnz 	C2NextByte
-		hlt
-
-; *****************************************************************************************************
-;								Cassette Dumper (Read into memory)
-;
-;	This fits into a single 32x8 8223 ROM. It is identical in format to the 2 ROM Cassette Dumper
-;	but it only loads 256 bytes into Page 0, after which it transfers control to the code at Page 0
-;
-;	The core of the code is identical to Dr. Suding's but it removes duplicate code and simplifies
-;	removing one delay loop and the final h-register test.
-;
-;	Effectively it is a double-boot loader ; it loads either a short program or a more complex tape
-;	loader which could have check summing and loading into different pages.
-;
-;	It is exactly 32 bytes long. 
-;
-; *****************************************************************************************************
-
-		align 	256
-
-CassetteRead32Byte:
-		mvi 	h,0										; put start address $0000 into HL
-		mov 	l,h 									; (not needed if run from boot)
-
-C3NextByte:
-		mvi 	c,8 									; bits to read in
-		mov	 	m,h										; byte read in (H is always zero)
-
-C3WaitStartBit:
-		in 		CassetteInputPort 						; check level which is in cassette bit 0
-		rrc
-		jc 		C3WaitStartBit 							; read until a bit '0' found (start bit)
-		mvi 	b,CWBitLength * 3 / 2 					; time till half way through next bit - stablised
-C3WaitBit:												; short delay till next bit sampled.
-		dcr 	b
-		jnz 	C3WaitBit
-
-		in 		CassetteInputPort 						; read bit into A
-		add 	m 										; add to M (current value)
-		rrc 											; rotate right circularly.
-		mov 	m,a 									; put back in M.
-
-		mvi 	b,CWBitLength 							; set delay till next bit
-		dcr 	c 										; read all 8 bits of byte in.
-		jnz 	C3WaitBit 								; no, go till complete.
-
-		inr 	l 										; increment Low ptr
-		jnz 	C3NextByte
-		rst 	0										; "jmp 0000" - in one instruction.
-		

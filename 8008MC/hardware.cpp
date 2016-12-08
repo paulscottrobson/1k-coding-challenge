@@ -18,9 +18,8 @@
 
 static BYTE8 videoRAM[512];													// 32 x 8 TVT Memory
 static BYTE8 isInitialised = 0;												// Non zero when initialised
-static BYTE8 vRAMPointer = 0;												// offset into video RAM
-static BYTE8 videoLast = 0;													// Last value written to TVT
 static BYTE8 pendingKey = 0;												// Key ready ?
+static BYTE8 x;                                                             // X Position.
 
 //	The dirty flag being in character groups of 4 is because the STM7920, the original LCD target,
 //	takes 16 bit horizontal words, which with a 3x5 font has 4 characters in it. If using a OLED
@@ -33,8 +32,10 @@ static BYTE8 pendingKey = 0;												// Key ready ?
 void HWIReset(void) {
 	if (isInitialised == 0) {
 		isInitialised = 1;
-		for (WORD16 n = 0;n < 512;n++) videoRAM[n] = n; 					// Clear VRAM (wouldn't happen)
+		for (WORD16 n = 0;n < 512;n++) videoRAM[n] = ' '; 					// Clear VRAM (wouldn't happen)
+        videoRAM[15*32] = 127;
 		pendingKey = 0;														// Clear keyboard buffer
+        x = 0;                                                              // Home cursor to bottom right.
 	}
 }
 
@@ -72,7 +73,7 @@ int HWIProcessKey(int key,int isRunTime) {
 BYTE8 HWIReadKeyboard(void) {
 	BYTE8 rv = 0;
 	if (pendingKey != 0) {													// Key waiting.
-		rv = pendingKey | 0x80;												// Return it with bit 7 set
+		rv = pendingKey;                                                    // Return it.
 		pendingKey = 0;														// Clear buffer
 	}
 	return rv;
@@ -87,4 +88,30 @@ BYTE8 HWIReadKeyboard(void) {
 // *******************************************************************************************************************************
 
 void HWIWriteVideoPort(BYTE8 n) {
+    n = n & 0x7F;
+    if (x > 0 && n == 8) {
+        videoRAM[15*32+x] = ' ';
+        x--;
+        videoRAM[15*32+x] = ' ';
+    }
+    if (n == 13) {
+        while (x < 32) {
+            videoRAM[15*32+x] = ' ';
+            x++;            
+        }
+    }
+    if (n >= ' ') {
+        videoRAM[15*32+x] = n;
+        x++;
+    }
+    if (x == 32) {
+        x = 0;
+        for (WORD16 p = 0;p < 15*32;p++) videoRAM[p] = videoRAM[p+32];
+        for (WORD16 p = 0;p < 32;p++) videoRAM[p+15*32] = ' ';
+    }
+    videoRAM[15*32+x] = 127;
+}
+
+BYTE8 HWIGetXCursor(void) {
+    return x;
 }
