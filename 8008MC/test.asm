@@ -1,27 +1,19 @@
 	
 		cpu		8008new
-
+;
+;	Memory Usage
+;	3 byte boot at $00 						(3)
+; 	8 byte read next character at $08 		(11)
+; 	8 byte print character at $10 			(19)
+;	32 byte line input routine at $18 		(51)
+; 	109 byte evaluate routine at $38 		(160)
 
 VariablePage = 0800h 											; this page has variables offset from ASCII 58
 InputPage = 0900h 												; text input goes here.
 ProgramMemory = 2000h 											; 127 program lines go here. 64 bytes each.
 
 		org 	0
-		jmp 	0700h
-
-		org 	0700h
-		mvi 	h,VariablePage/256
-		mvi 	l,7
-		mvi 	m,37
-
-		mvi 	h,Sum / 256
-		mvi 	l,Sum & 255
-		rst 	Evaluate
-Stop:	jmp 	Stop
-
-Sum:
-		db 		"7",0
-
+		jmp 	COMMAND_New
 
 ; ***********************************************************************************************
 ; ***********************************************************************************************
@@ -42,6 +34,55 @@ GetNextCharacter:
 ; ***********************************************************************************************
 ; ***********************************************************************************************
 ;
+;					Routine : 8 bytes. Print Character in B, returned in A+B
+;
+; ***********************************************************************************************
+; ***********************************************************************************************
+
+PrintCharacter:
+		in 		1 												; check the ready to send flag
+		ora 	a
+		jp 		PrintCharacter 									; jump back if not ready
+		mov 	a,b 											; send B to port 8.
+		out 	8
+		ret
+
+; ***********************************************************************************************
+;	
+;					Routine : xx bytes, Input a line to InputPage, ASCIIZ.
+;
+;	On exit HL points to line buffer.
+;
+; ***********************************************************************************************
+
+InputLine:
+		mvi 	h,InputPage/256 								; HL points to input buffer
+__CLStartLine:		
+		mvi 	l,1  											; point to start of line+1
+__CLPreviousCharacter:		
+		dcr 	l 												; go back 1
+		jm 		__CLStartLine 									; gone too far, restart.
+__CLNextCharacterInput:
+		in 		0 												; read keyboard
+		ora 	a
+		jz 		__CLNextCharacterInput
+		mov 	b,a 											; echo it
+		rst 	PrintCharacter
+		mov 	a,b 											; get character back.
+		cpi 	8 												; is it BS
+		jz 		__CLPreviousCharacter
+		mov 	m,a 											; write it out
+		inr 	l 												; next slot
+		xri 	13   											; if CR then this will set A = 0
+		jnz 	__CLNextCharacterInput
+		dcr 	l 												; replace last character with 00
+		mov 	m,a 
+		mov 	l,a 											; point HL to start of line.
+		ret
+
+; ***********************************************************************************************
+; ***********************************************************************************************
+;
 ;	Routine : 109 bytes. Evaluate string at HL. Returns result in B. 
 ;
 ;	Operators are + - * / and , (xor) . (and). Terms are variables a-zA-Z and integer constants
@@ -54,6 +95,7 @@ GetNextCharacter:
 ; ***********************************************************************************************
 ; ***********************************************************************************************
 
+		org 	038h
 Evaluate:
 		xra 	a
 		mov 	b,a 											; b is current left value
@@ -162,3 +204,41 @@ __SEMultiply1:
 		dcr 	d
 		jnz 	__SEMultiply1
 		ret
+
+		org 	0200h
+
+; ***********************************************************************************************
+; ***********************************************************************************************
+;
+;									NEW Program, also cold boot
+;	
+; ***********************************************************************************************
+; ***********************************************************************************************
+
+COMMAND_New:													
+		xra 	a 												; cannot assume registers zero
+		mov 	l,a 											; HL = 0E000h to clear 20xx-3Fxx
+		mvi 	h,0E0h
+__NewLoop:
+		mov 	m,h
+		inr 	l
+		jnz 	__NewLoop
+		inr 	h
+		jnz 	__NewLoop
+
+; ***********************************************************************************************
+; ***********************************************************************************************
+;
+;										Main Command Loop
+;
+; ***********************************************************************************************
+; ***********************************************************************************************
+
+CommandLoop:
+		mvi 	b,']'											; print ] prompt
+		rst 	PrintCharacter
+		rst 	InputLine
+		rst 	Evaluate
+		mov 	c,b
+		mov 	d,b
+		jmp 	CommandLoop

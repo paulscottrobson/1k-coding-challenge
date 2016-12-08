@@ -36,6 +36,8 @@ void HWIReset(void) {
         videoRAM[15*32] = 127;
 		pendingKey = 0;														// Clear keyboard buffer
         x = 0;                                                              // Home cursor to bottom right.
+        char *msg = "*** 8008 Simple Machine ***\r\r16384 bytes free\r\r";
+        while (*msg != '\0') HWIWriteVideoPort(*msg++);
 	}
 }
 
