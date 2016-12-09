@@ -4,10 +4,18 @@
 ;
 ;	Savings : shift to 128 bytes/line or 256 bytes/line
 ; 	Drop and and xor ? (consequences for math.)
-;	Dump NEW.
+;
 
-VariablePage = 	0400h 											; this page has variables offset from ASCII 58
-InputPage = 	0500h 											; text input goes here.
+;
+;	Coding:
+;		Enter program
+;		Auto-enter program [seperate]
+;		new run let goto input print call exit (return) view (list) key (character) out (character)
+;
+;
+
+VariablePage = 	1000h 											; this page has variables offset from ASCII 58
+InputPage = 	1100h 											; text input goes here.
 
 ProgramMemory = 2000h 											; 127 program lines go here. 64 bytes each.
 																; line 1 at 2040h, 2 at 2080h etc.
@@ -249,8 +257,6 @@ __PIDivide:
 		mov 	b,a 											; it out.
 		rst 	PrintCharacter
 		ret
-
-		org 	0200h
 
 ; ***********************************************************************************************
 ; ***********************************************************************************************
