@@ -1,24 +1,37 @@
 	
 		cpu		8008new
-;
-;	Memory Usage
-;	3 byte boot at $00 						(3)
-; 	8 byte read next character at $08 		(11)
-; 	8 byte print character at $10 			(19)
-;	32 byte line input routine at $18 		(51)
-; 	109 byte evaluate routine at $38 		(160)
 
-VariablePage = 0800h 											; this page has variables offset from ASCII 58
-InputPage = 0900h 												; text input goes here.
+;
+;	Savings : shift to 128 bytes/line or 256 bytes/line
+; 	Drop and and xor ? (consequences for math.)
+;	Dump NEW.
+
+VariablePage = 	0400h 											; this page has variables offset from ASCII 58
+InputPage = 	0500h 											; text input goes here.
+
 ProgramMemory = 2000h 											; 127 program lines go here. 64 bytes each.
-
+																; line 1 at 2040h, 2 at 2080h etc.
 		org 	0
-		jmp 	COMMAND_New
 
 ; ***********************************************************************************************
 ; ***********************************************************************************************
 ;
-;		Routine : 8 bytes. Read next non space character from (HL)
+;									Main command loop
+;
+; ***********************************************************************************************
+; ***********************************************************************************************
+
+NextCommand:
+		mvi	 	b,']' 											; print a ] prompt
+		rst 	PrintCharacter 									
+		rst 	InputLine 										; get the line.
+		call 	CommandExecute 									; execute it
+		rst 	NextCommand 									; loop back.
+
+; ***********************************************************************************************
+; ***********************************************************************************************
+;
+;							Read next non space character from (HL)
 ;
 ; ***********************************************************************************************
 ; ***********************************************************************************************
@@ -34,7 +47,7 @@ GetNextCharacter:
 ; ***********************************************************************************************
 ; ***********************************************************************************************
 ;
-;					Routine : 8 bytes. Print Character in B, returned in A+B
+;							Print Character in B, returned in A+B
 ;
 ; ***********************************************************************************************
 ; ***********************************************************************************************
@@ -48,11 +61,13 @@ PrintCharacter:
 		ret
 
 ; ***********************************************************************************************
+; ***********************************************************************************************
 ;	
-;					Routine : xx bytes, Input a line to InputPage, ASCIIZ.
+;								Input a line to InputPage, ASCIIZ.
 ;
 ;	On exit HL points to line buffer.
 ;
+; ***********************************************************************************************
 ; ***********************************************************************************************
 
 InputLine:
@@ -83,7 +98,7 @@ __CLNextCharacterInput:
 ; ***********************************************************************************************
 ; ***********************************************************************************************
 ;
-;	Routine : 109 bytes. Evaluate string at HL. Returns result in B. 
+;							Evaluate string at HL. Returns result in B. 
 ;
 ;	Operators are + - * / and , (xor) . (and). Terms are variables a-zA-Z and integer constants
 ;
@@ -205,40 +220,48 @@ __SEMultiply1:
 		jnz 	__SEMultiply1
 		ret
 
+; ***********************************************************************************************
+; ***********************************************************************************************
+;
+;									Print D as an integer
+;
+;	Breaks A,B,C,D
+; ***********************************************************************************************
+; ***********************************************************************************************
+
+PrintInteger:
+		mvi 	c,100 											; initial divisor
+__PILoop:
+		mvi 	b,'0'-1 										; character to print/count division
+		mov 	a,d 											; get integer
+__PIDivide:
+		inr 	b 												; one more 
+		mov 	d,a 											; put pre-subtract back.
+		sub 	c												; subtract divisor
+		jnc  	__PIDivide 										; keep going till a borrow.
+		rst 	PrintCharacter 									; print the result.
+		mov 	a,c  											; convert 100-10
+		sui 	90
+		mov 	c,a
+		jnc 	__PILoop 										; keep going if 10.
+		mov 	a,d 											; get what is left
+		ori 	'0'												; make ASCII and print
+		mov 	b,a 											; it out.
+		rst 	PrintCharacter
+		ret
+
 		org 	0200h
 
 ; ***********************************************************************************************
 ; ***********************************************************************************************
 ;
-;									NEW Program, also cold boot
-;	
-; ***********************************************************************************************
-; ***********************************************************************************************
-
-COMMAND_New:													
-		xra 	a 												; cannot assume registers zero
-		mov 	l,a 											; HL = 0E000h to clear 20xx-3Fxx
-		mvi 	h,0E0h
-__NewLoop:
-		mov 	m,h
-		inr 	l
-		jnz 	__NewLoop
-		inr 	h
-		jnz 	__NewLoop
-
-; ***********************************************************************************************
-; ***********************************************************************************************
-;
-;										Main Command Loop
+;										Execute Command at (HL)
 ;
 ; ***********************************************************************************************
 ; ***********************************************************************************************
 
-CommandLoop:
-		mvi 	b,']'											; print ] prompt
-		rst 	PrintCharacter
-		rst 	InputLine
+CommandExecute:
 		rst 	Evaluate
-		mov 	c,b
 		mov 	d,b
-		jmp 	CommandLoop
+		call 	PrintInteger
+		ret
