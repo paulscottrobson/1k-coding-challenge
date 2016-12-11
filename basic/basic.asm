@@ -2,18 +2,23 @@
 		cpu		8008new
 
 ;
-;	Savings : shift to 128 bytes/line or 256 bytes/line
-; 	Drop and and xor ? (consequences for math.)
+;	variables A-Z, operators + - * / . (and) , (xor), 1 byte values all.
 ;
-;	variables A-Z
-; 	keywords in lower case.
+; 	keywords in lower case, variables in upper case.
+;	: seperates program lines.
 ;
+;	NOTE: Some commands have been renamed because only the first character matters
+; 		  so RUN is now XECUTE and LIST is now VIEW
 ;
-;	Coding:
-;		Enter program lines (also empty lines)
-;		Auto-enter program [seperate]
-;		new run let goto input print call exit (return) view (list) key (character) out (character)
+;	goto <expression>					Go to line number.
+;	new 								Erase current program.
+;	out <expression> 					Print character <expression> (e.g. out 42 prints '*')
+;	xecute  							Run Program (BS breaks into a running program)
+;	stop 								Stop Program
+;	view [<start line>] 				List 12 lines of current program.
 ;
+;	Coding to do:
+;		let input print call return key [get character]
 ;
 
 VariablePage = 	1000h 											; this page has variables offset from A = 0
@@ -237,6 +242,26 @@ __SEMultiply1:
 		ret
 
 ; ***********************************************************************************************
+;
+;								Print line at HL as its line number
+;
+; ***********************************************************************************************
+
+PrintLineNumber:
+		mov 	a,l
+		add 	a
+		mov 	c,a
+		mov 	a,h
+		adc 	h
+		mov 	d,a
+		mov 	a,c
+		add 	c
+		mov 	a,d
+		adc 	d
+		ani 	07Fh
+		mov 	d,a
+
+; ***********************************************************************************************
 ; ***********************************************************************************************
 ;
 ;									Print D as an integer
@@ -289,7 +314,26 @@ __SkipOverKeyword:
 		dcr 	l  												; unpick the last get.
 		mov 	a,b 											; get the first character back.
 
-		; 	check first characters
+		cpi 	'g' 											; these ones come first, they change HL
+		jz 		COMMAND_Goto
+
+		call 	__CExecOne 										; execute one command.
+		rst 	GetNextCharacter 								; next is :
+		cpi 	':'
+		jz 		CommandExecute
+		ret
+
+__CExecOne:
+		cpi 	'o'
+		jz 		COMMAND_Out 
+		cpi 	'x' 											; these ones are not speed important
+		jz 		COMMAND_eXecute
+		cpi 	'v' 	
+		jz 		COMMAND_View
+		cpi 	'n'
+		jz 		COMMAND_New
+		cpi 	's' 
+		jz 		COMMAND_Stop
 
 wait1:	jmp 	wait1 			; execute command, 1st letter x 2 in A
 
@@ -298,6 +342,7 @@ wait1:	jmp 	wait1 			; execute command, 1st letter x 2 in A
 ;									Put a program line into memory.
 ;
 ; ***********************************************************************************************
+
 ProgramLine:
 		dcr 	l 												; backspace to first character
 		rst 	Evaluate 										; get line number into B, address into DE
@@ -315,3 +360,129 @@ __PLCopy:
 		inr 	c 												; increment two pointers
 		inr 	e 
 		jmp 	__PLCopy 										; jump back and return if zero.
+
+; ***********************************************************************************************
+; ***********************************************************************************************
+;
+;										new : erase program completely
+;
+; ***********************************************************************************************
+; ***********************************************************************************************
+
+COMMAND_New:
+		mvi 	h,ProgramMemory/256+0C0h 						; address has 2 MSB sets for zero check.
+		xra 	a 												; zero A and L
+		mov 	l,a
+__CN_Loop: 														; fill memory with zeros.
+		mov 	m,a
+		inr 	l
+		jnz 	__CN_Loop
+		inr 	h
+		jnz 	__CN_Loop
+		rst   	NextCommand
+
+; ***********************************************************************************************
+; ***********************************************************************************************
+;
+;									view [<start line>] : list program
+;
+; ***********************************************************************************************
+; ***********************************************************************************************
+
+COMMAND_View:
+		rst 	Evaluate 										; line number in B, address in DE.
+		mov 	h,d 											; put line address in HL.
+		mov 	l,e 							 
+		mvi 	e,12 											; E is the number to print.
+__CL_Loop:
+		mov 	a,m 											; look at the code
+		ora 	a 												; if zero don't list it
+		jz 		__CL_Next
+		call 	PrintLineNumber 								; line
+		mvi 	b,' ' 											; space
+__CL_Print:
+		rst 	PrintCharacter 									; print
+		mov 	b,m 											; put char in B for printing
+		inr 	l 												; advance pointer
+		mov 	a,b 											; loop back if nz
+		ora 	a
+		jnz 	__CL_Print
+		mvi 	b,13 											; print new line.
+		rst 	PrintCharacter
+		dcr 	e 												; do 12 lines.
+		jz 		NextCommand
+__CL_Next:
+		call 	NextLine
+		jnz 	__CL_Loop 										; go back. 
+		rst 	NextCommand
+
+; ***********************************************************************************************
+;
+;			Advance pointer HL to next line. Return Z flag set if end of program
+;
+; ***********************************************************************************************
+
+NextLine:
+		mov 	a,l 											; go to next line. 
+		ani 	0C0h
+		adi 	64
+		mov 	l,a
+		mov 	a,h
+		aci 	0
+		mov 	h,a
+		cpi 	40h 											; reached end of program memory
+		ret
+
+; ***********************************************************************************************
+; ***********************************************************************************************
+;
+;							out <expression> prints a character
+;
+; ***********************************************************************************************
+; ***********************************************************************************************
+
+COMMAND_Out:
+		rst 	Evaluate 										; out what ?
+		mov 	a,b 											; check not zero
+		ani 	07Fh
+		rz  													; if so, exit.
+		rst 	PrintCharacter
+		ret
+
+; ***********************************************************************************************
+; ***********************************************************************************************
+;
+;									Xecute : Run program
+;
+; ***********************************************************************************************
+; ***********************************************************************************************
+
+COMMAND_eXecute:
+		mvi 	h,ProgramMemory / 256 							; start from here
+		mvi 	l,0 
+__CR_Loop:
+		in 		0 												; check for Backspaces which exits.
+		cpi 	8
+		jz 		COMMAND_Stop
+		call 	CommandExecute 									; execute one line
+		call 	NextLine 										; go to next line
+		jnz 	__CR_Loop 											
+COMMAND_Stop:		
+		rst   	NextCommand 									; end of program, go to next command.
+
+; ***********************************************************************************************
+; ***********************************************************************************************
+;
+;										Go to a new line
+;
+; ***********************************************************************************************
+; ***********************************************************************************************
+
+COMMAND_Goto:
+		rst 	Evaluate 										; evaluate line to go to
+		mov 	l,e 											; copy address to DE
+		mov 	h,d
+		mov 	a,b 											; if number found.
+		ora 	a
+		jnz 	CommandExecute 									; then go there.
+		rst 	NextCommand 									; goto 0 [stop]
