@@ -5,16 +5,18 @@
 ;	Savings : shift to 128 bytes/line or 256 bytes/line
 ; 	Drop and and xor ? (consequences for math.)
 ;
-
+;	variables A-Z
+; 	keywords in lower case.
+;
 ;
 ;	Coding:
-;		Enter program
+;		Enter program lines (also empty lines)
 ;		Auto-enter program [seperate]
 ;		new run let goto input print call exit (return) view (list) key (character) out (character)
 ;
 ;
 
-VariablePage = 	1000h 											; this page has variables offset from ASCII 58
+VariablePage = 	1000h 											; this page has variables offset from A = 0
 InputPage = 	1100h 											; text input goes here.
 
 ProgramMemory = 2000h 											; 127 program lines go here. 64 bytes each.
@@ -49,7 +51,7 @@ GetNextCharacter:
 		mov 	a,m 											; read character.
 		inr 	l 												; and advance.
 		cpi 	' '												; if space
-		jz 		NextCharacter 									; get another one.
+		jz 		GetNextCharacter 								; get another one.
 		ret
 
 ; ***********************************************************************************************
@@ -113,7 +115,7 @@ __CLNextCharacterInput:
 ;	Not awfully syntax checked :) x/0 returns 0. Technically : and up are all variables.
 ;
 ;	On exit HL points to found unknown character.
-; 	On exit ED points to the line number if it's a program line (that way round)
+; 	On exit DE points to the line number if it's a program line (that way round)
 ;
 ; ***********************************************************************************************
 ; ***********************************************************************************************
@@ -135,7 +137,7 @@ AddDigit:
 		mov 	d,a 											; put back in D.
 NextCharacter:
 		rst 	GetNextCharacter 								; get next character.
-		sui 	58 												; 58 - 127 are ALL variables.
+		sui 	58 												; 58 - 127 are maybe variables.
 		jp  	__IsVariable
 		adi 	10 												; 0-9 for digits.
 		jp 		AddDigit 										; if that, add to current right and goback.
@@ -148,27 +150,33 @@ NextCharacter:
 		mov 	a,c 											; look at that operator
 		ora 	a 												; if +ve loop back next calculation
 		jp 		NextCharacter 
+		mov 	d,b 											; put result in D
+ExitEvaluate1:		
+		mov 	b,d 											; put result in B
 		dcr  	l 												; gone too far, go back one.
-
 		mov 	a,b 											; get result to set up program pointer.
 		ori 	080h 											; set bit 7 , which will be bit 5 if shift x 2
 		rar 													; also CC for this.
-		mov 	e,a 											; put shifted right once into E.
-		mov 	a,d 											; D is already zero, why it is ED not DE
+		mov 	d,a 											; put shifted right once into D
+		mvi 	a,0 											; 
 		rar  													; will clear C again.
-		mov 	d,a  									
-		mov 	a,e 											; now shift ED right once more.
+		mov 	e,a  									
+		mov 	a,d 											; now shift DE right once more.
 		rar
-		mov 	e,a
-		mov 	a,d
+		mov 	d,a
+		mov 	a,e
 		rar
-		mov		d,a
+		mov		e,a
 
 		ret
 ;
-;		Contains 0-69 which are the variables.
+;		Variable ? A contains variable char - 58.
 ;		
 __IsVariable:
+		sui 	91-58 											; if >= 91 this will be +ve
+		jp 		ExitEvaluate1 								
+		adi 	26 												; if 0-25 then legit.
+		jm 		ExitEvaluate1
 		mov 	e,l 											; save L in E
 		mov 	l,a 											; L is variable index
 		mov 	a,h 											; save H in A
@@ -267,7 +275,43 @@ __PIDivide:
 ; ***********************************************************************************************
 
 CommandExecute:
-		rst 	Evaluate
-		mov 	d,b
-		call 	PrintInteger
-		ret
+		rst 	GetNextCharacter 								; get character.
+		mov 	b,a 											; save in B
+		ral 													; shift left bit 6 into bit 7. basic # test
+		ora 	a 												; check if zero, signed.
+		rz
+		jp 		ProgramLine 									; if +ve it is a
+
+__SkipOverKeyword:
+		rst 	GetNextCharacter 								; get character
+		adi 	256-97 											; CS if >= 97 e.g. lower case keyword
+		jc 		__SkipOverKeyword 
+		dcr 	l  												; unpick the last get.
+		mov 	a,b 											; get the first character back.
+
+		; 	check first characters
+
+wait1:	jmp 	wait1 			; execute command, 1st letter x 2 in A
+
+; ***********************************************************************************************
+;
+;									Put a program line into memory.
+;
+; ***********************************************************************************************
+ProgramLine:
+		dcr 	l 												; backspace to first character
+		rst 	Evaluate 										; get line number into B, address into DE
+		mov 	c,l 											; C is the low byte of the input line.
+		mov 	a,b 											; exit if the line number is zero
+__PLCopy:
+		ora 	a
+		rz		
+		mov 	l,c 											; read next byte from input line.
+		mvi 	h,InputPage/256		
+		mov 	a,m
+		mov 	h,d 											; write it out to address DE
+		mov 	l,e
+		mov 	m,a
+		inr 	c 												; increment two pointers
+		inr 	e 
+		jmp 	__PLCopy 										; jump back and return if zero.
