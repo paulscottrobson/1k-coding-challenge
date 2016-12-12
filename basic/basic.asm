@@ -15,13 +15,13 @@
 ; 	let <variable> = <expression> 		Assignment.
 ;	new 								Erase current program.
 ;	out <expression> 					Print character <expression> (e.g. out 42 prints '*')
+;	print "<string>";<expression>[;] 	Print to terminal
 ;	stop 								Stop Program
 ;	view [<start line>] 				List 12 lines of current program.
 ;	xecute  							Run Program (BS breaks into a running program)
 ;
 ;	Coding to do:
 ;		if [!]<expr> [command] 
-;		print "xxx";a 
 ;		call <line>
 ;		return
 ;		key <variable>
@@ -325,7 +325,7 @@ __SkipOverKeyword:
 		dcr 	l  												; unpick the last get.
 		mov 	a,b 											; get the first character back.
 
-		cpi 	'g' 											; these ones come first, they change HL
+		cpi 	'g' 											; these ones come first, they change HL page.
 		jz 		COMMAND_Goto
 
 		call 	__CExecOne 										; execute one command.
@@ -335,10 +335,12 @@ __SkipOverKeyword:
 		ret
 
 __CExecOne:
-		cpi 	'o' 											; commands which may change HL.
+		cpi 	'o' 											; commands which won't change HL page.
 		jz 		COMMAND_Out 
 		cpi 	'l'
 		jz 		COMMAND_Let
+		cpi 	'p'
+		jz 		COMMAND_Print 	
 		cpi 	'i'
 		jz 		COMMAND_Input
 		cpi 	'x' 											; these ones are not speed important
@@ -612,3 +614,63 @@ Command_Input:
 		mov 	l,m
 		mov 	h,a
 		ret 													; and exit.
+
+; ***********************************************************************************************
+;
+;								print <variable> "<string>" ; 
+;
+; ***********************************************************************************************
+
+Command_Print:
+		rst 	GetNextCharacter 								; get character
+		cpi 	'"' 											; if " then it is a string.
+		jz 		__CP_String 									
+		ora 	a 												; if zero then command ends.
+		jz 		__CP_EndPrint
+		cpi 	':'												; if colon, then command ends.
+		jz 		__CP_EndPrint
+		cpi 	';' 											; if not semicolon then expression
+		jnz 	__CP_Expression
+;
+;		Found a semicolon so if followed by : or NULL, exit without newline
+;
+		rst 	GetNextCharacter 								; semicolon found, get next char and undo incr
+		dcr 	l
+		ora 	a 												; if end of command exit.
+		rz 
+		cpi 	':' 											; which is either end of line or semicolon.
+		rz
+		jmp 	Command_Print 									; no, go and print again.
+;
+;		Found colon or NULL, so exit with newline
+;
+__CP_EndPrint: 													; end of command
+		dcr 	l 												; undo the get.
+__CP_CRAndExit:		
+		mvi 	b,13 											; print CR
+		rst 	PrintCharacter
+		ret 													; and exit.
+;
+;		Quoted String
+;
+__CP_String:
+		mov 	a,m 											; read next characted, not skipping spaces.
+		ora 	a 
+		jz 		__CP_CRAndExit 									; end of line, print CR and exit.
+		inr 	l 												; advance pointer 
+		cpi 	'"'												; if closing quote start again
+		jz 		Command_Print 
+		mov 	b,a 											; otherwise print and loop
+		rst 	PrintCharacter
+		jmp 	__CP_String
+;
+;		Numerical expression.
+;		
+__CP_Expression:
+		dcr 	l 												; start of expression
+		mvi 	b,' '											; print a space
+		rst 	PrintCharacter
+		rst 	Evaluate 										; get expression
+		mov 	d,b 											; move value into D
+		call 	PrintInteger 									; print it
+		jmp 	COMMAND_Print 									; and loop back.
