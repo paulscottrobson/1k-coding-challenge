@@ -11,6 +11,7 @@
 ; 		  so RUN is now XECUTE and LIST is now VIEW
 ;
 ;	goto <expression>					Go to line number.
+; 	let <variable> = <expression> 		Assignment.
 ;	new 								Erase current program.
 ;	out <expression> 					Print character <expression> (e.g. out 42 prints '*')
 ;	xecute  							Run Program (BS breaks into a running program)
@@ -18,11 +19,13 @@
 ;	view [<start line>] 				List 12 lines of current program.
 ;
 ;	Coding to do:
-;		let input print call return key [get character]
+;		input <variable> ; print "xxx";a ; call <line> ; return ; key <variable>
+;		code to load program memory.
 ;
 
 VariablePage = 	1000h 											; this page has variables offset from A = 0
 InputPage = 	1100h 											; text input goes here.
+UpdatePage = 	1200h 											; code to do ld (hl),x goes here.
 
 ProgramMemory = 2000h 											; 127 program lines go here. 64 bytes each.
 																; line 1 at 2040h, 2 at 2080h etc.
@@ -248,6 +251,9 @@ __SEMultiply1:
 ; ***********************************************************************************************
 
 PrintLineNumber:
+		mov 	a,h
+		ani 	20h 											; if not in program memory
+		rz 														; don't print it.
 		mov 	a,l
 		add 	a
 		mov 	c,a
@@ -326,6 +332,8 @@ __SkipOverKeyword:
 __CExecOne:
 		cpi 	'o'
 		jz 		COMMAND_Out 
+		cpi 	'l'
+		jz 		COMMAND_Let
 		cpi 	'x' 											; these ones are not speed important
 		jz 		COMMAND_eXecute
 		cpi 	'v' 	
@@ -334,8 +342,22 @@ __CExecOne:
 		jz 		COMMAND_New
 		cpi 	's' 
 		jz 		COMMAND_Stop
+		mvi 	c,'C' 											; command error.
 
-wait1:	jmp 	wait1 			; execute command, 1st letter x 2 in A
+; ***********************************************************************************************
+;
+;								Report error, character code in C
+;
+; ***********************************************************************************************
+
+Error: 	mvi 	b,'?' 											; print ?
+		rst 	PrintCharacter
+		mov 	b,c
+		rst 	PrintCharacter 									; print error code
+		mvi 	b,'@' 											; print @
+		rst 	PrintCharacter 
+		call 	PrintLineNumber 								; print line number
+		rst 	NextCommand 									; go to command loop.
 
 ; ***********************************************************************************************
 ;
@@ -486,3 +508,73 @@ COMMAND_Goto:
 		ora 	a
 		jnz 	CommandExecute 									; then go there.
 		rst 	NextCommand 									; goto 0 [stop]
+
+; ***********************************************************************************************
+; ***********************************************************************************************
+;
+;									let <variable> = <expression>
+;
+; ***********************************************************************************************
+; ***********************************************************************************************
+
+COMMAND_Let:
+		call 	SetUpSaveVariable 								; code to set up variable update.
+		rst 	GetNextCharacter  								; check for equal
+		cpi 	'='
+		jnz 	SyntaxError
+		rst 	Evaluate 										; evaluate RHS.
+
+; ***********************************************************************************************
+;
+;								Save value in B in preset variable
+;
+; ***********************************************************************************************
+
+SaveBInVar:
+		mov 	d,h 					 						; save HL
+		mov 	e,l
+		call 	UpdatePage 										; load L.
+		mvi 	h,VariablePage/256 								; and H.
+		mov 	m,b 											; write result out.
+		mov 	h,d 											; restore HL
+		mov 	l,e
+		ret  													; and done.
+
+; ***********************************************************************************************
+;
+;										Report Syntax Error
+;
+; ***********************************************************************************************
+
+SyntaxError: 													; (S)yntax error
+		mvi 	c,'S'
+		jmp 	Error
+
+; ***********************************************************************************************
+;
+;				Set up to save a value in next variable in line. (puts MVI L,nn;RET)
+;
+; ***********************************************************************************************
+
+SetUpSaveVariable:
+		rst 	GetNextCharacter 								; get the character
+		sui 	65+26 											; check if > 'Z'.
+		jp 		__SUSError
+		adi 	26 												; check if < 'A'
+		jm 		__SUSError
+		mov 	d,h 											; save HL.
+		mov 	e,l
+		mvi 	h,UpdatePage/256 								; HL points to update page.
+		mvi 	l,0
+		mvi 	m,036h 											; MVI L command
+		inr 	l
+		mov 	m,a 											; address to load into L
+		inr 	l
+		mvi 	m,7 											; RET
+		mov 	h,d 											; restore HL
+		mov 	l,e
+		ret
+__SUSError:
+		mvi 	c,'V' 											; report (V)ariable error.
+		jmp 	Error
+

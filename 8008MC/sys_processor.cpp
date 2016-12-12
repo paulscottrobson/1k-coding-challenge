@@ -50,9 +50,9 @@ static BYTE8 ramMemory[RAMSIZE];													// RAM memory
 // *******************************************************************************************************************************
 
 #define CYCLES(n)		Cycles += (n)
-#define FETCH()			{ MA = PCTR;READ();PCTR = (PCTR + 1) & 07777; }
-#define FETCHWORD()		{ MA = PCTR;READ();temp16 = MB;MA++;READ();MA = (MB << 8) | temp16; PCTR = (PCTR + 2) & 07777; }
-#define JUMP()			PCTR = MA & 07777
+#define FETCH()			{ MA = PCTR;READ();PCTR = (PCTR + 1) & 0x3FFF; }
+#define FETCHWORD()		{ MA = PCTR;READ();temp16 = MB;MA++;READ();MA = (MB << 8) | temp16; PCTR = (PCTR + 2) & 0x3FFF; }
+#define JUMP()			PCTR = MA & 0x3FFF
 #define CALL()			{ PCIX = (PCIX + 1) & 7;JUMP(); }
 #define RETURN()		PCIX = (PCIX - 1) & 7;
 
