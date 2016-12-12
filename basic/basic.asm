@@ -11,21 +11,26 @@
 ; 		  so RUN is now XECUTE and LIST is now VIEW
 ;
 ;	goto <expression>					Go to line number.
+;	input <variable>					Input a number
 ; 	let <variable> = <expression> 		Assignment.
 ;	new 								Erase current program.
 ;	out <expression> 					Print character <expression> (e.g. out 42 prints '*')
-;	xecute  							Run Program (BS breaks into a running program)
 ;	stop 								Stop Program
 ;	view [<start line>] 				List 12 lines of current program.
+;	xecute  							Run Program (BS breaks into a running program)
 ;
 ;	Coding to do:
-;		input <variable> ; print "xxx";a ; call <line> ; return ; key <variable>
-;		code to load program memory.
+;		if [!]<expr> [command] 
+;		print "xxx";a 
+;		call <line>
+;		return
+;		key <variable>
+;		+code to load program memory.
 ;
 
 VariablePage = 	1000h 											; this page has variables offset from A = 0
 InputPage = 	1100h 											; text input goes here.
-UpdatePage = 	1200h 											; code to do ld (hl),x goes here.
+UpdatePage = 	1200h 											; code to do ld (hl),x goes here+misc
 
 ProgramMemory = 2000h 											; 127 program lines go here. 64 bytes each.
 																; line 1 at 2040h, 2 at 2080h etc.
@@ -330,10 +335,12 @@ __SkipOverKeyword:
 		ret
 
 __CExecOne:
-		cpi 	'o'
+		cpi 	'o' 											; commands which may change HL.
 		jz 		COMMAND_Out 
 		cpi 	'l'
 		jz 		COMMAND_Let
+		cpi 	'i'
+		jz 		COMMAND_Input
 		cpi 	'x' 											; these ones are not speed important
 		jz 		COMMAND_eXecute
 		cpi 	'v' 	
@@ -578,3 +585,30 @@ __SUSError:
 		mvi 	c,'V' 											; report (V)ariable error.
 		jmp 	Error
 
+; ***********************************************************************************************
+;
+;											input <variable>
+;
+; ***********************************************************************************************
+
+Command_Input:
+		call 	SetUpSaveVariable 								; get ready to set up.
+		mov 	d,h 											; save HL in DE
+		mov 	e,l
+		mvi 	h,UpdatePage/256 								; save HL in update page
+		mvi 	l,10h
+		mov 	m,d
+		inr 	l
+		mov 	m,e
+		mvi 	b,'?'											; prompt
+		rst 	PrintCharacter
+		rst 	InputLine 										; read line.
+		rst 	Evaluate 										; evaluate, result now in B.
+		call 	SaveBInVar 										; save the result
+		mvi 	l,10h 											; restore HL
+		mvi 	h,UpdatePage/256 				
+		mov 	a,m
+		inr 	l
+		mov 	l,m
+		mov 	h,a
+		ret 													; and exit.
