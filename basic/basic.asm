@@ -10,8 +10,9 @@
 ;	NOTE: Some commands have been renamed because only the first character matters
 ; 		  so RUN is now XECUTE and LIST is now VIEW
 ;
+;	fetch <variable>					Input a number
 ;	goto <expression>					Go to line number.
-;	input <variable>					Input a number
+;	if <expr>[>|<|=]<expr> [command]:.. Conditional execution of command(s)
 ;	key <variable>						Input a single keystroke (ASCII value)
 ; 	let <variable> = <expression> 		Assignment.
 ;	new 								Erase current program.
@@ -25,7 +26,6 @@
 ;
 ;		call <line>
 ;		return
-;		if [!]<expr> [command] 
 ;
 
 VariablePage = 	1000h 											; this page has variables offset from A = 0
@@ -155,6 +155,7 @@ NextCharacter:
 		adi 	10 												; 0-9 for digits.
 		jp 		AddDigit 										; if that, add to current right and goback.
 		adi 	6 												; 0-5 for * + , - . /
+__EnterCalc:		
 		mov 	e,a 											; save next operator in E.
 		call 	SubEvaluator 									; do operation 0-5.
 		mov 	b,a 											; save the result in B
@@ -163,9 +164,9 @@ NextCharacter:
 		mov 	a,c 											; look at that operator
 		ora 	a 												; if +ve loop back next calculation
 		jp 		NextCharacter 
-		mov 	d,b 											; put result in D
-ExitEvaluate1:		
-		mov 	b,d 											; put result in B
+;		mov 	d,b 											; put result in D
+;ExitEvaluate1:		
+;		mov 	b,d 											; put result in B
 		dcr  	l 												; gone too far, go back one.
 		mov 	a,b 											; get result to set up program pointer.
 __LineNumberToDE:		
@@ -182,14 +183,18 @@ __LineNumberToDE:
 		rar 													; loader code.
 		mov		e,a
 		ret
+
+__ReEnterCalc:		
+		mvi 	a,0FFh
+		jmp 	__EnterCalc 	
 ;
 ;		Variable ? A contains variable char - 58.
 ;		
 __IsVariable:
 		sui 	91-58 											; if >= 91 this will be +ve
-		jp 		ExitEvaluate1 								
+		jp 		__ReEnterCalc 								
 		adi 	26 												; if 0-25 then legit.
-		jm 		ExitEvaluate1
+		jm 		__ReEnterCalc
 		mov 	e,l 											; save L in E
 		mov 	l,a 											; L is variable index
 		mov 	a,h 											; save H in A
@@ -327,6 +332,8 @@ __SkipOverKeyword:
 
 		cpi 	'g' 											; these ones come first, they change HL page.
 		jz 		COMMAND_Goto
+		cpi 	'i'
+		jz 		COMMAND_If
 
 		call 	__CExecOne 										; execute one command.
 		rst 	GetNextCharacter 								; next is :
@@ -343,8 +350,8 @@ __CExecOne:
 		jz 		COMMAND_Print 	
 		cpi 	'k'
 		jz 		COMMAND_Key
-		cpi 	'i'
-		jz 		COMMAND_Input
+		cpi 	'f'
+		jz 		COMMAND_Fetch
 		cpi 	'x' 											; these ones are not speed important
 		jz 		COMMAND_eXecute
 		cpi 	'v' 	
@@ -572,12 +579,12 @@ __SUSError:
 ; ***********************************************************************************************
 ; ***********************************************************************************************
 ;
-;											input <variable>
+;											fetch <variable>
 ;
 ; ***********************************************************************************************
 ; ***********************************************************************************************
 
-Command_Input:
+Command_Fetch:
 		call 	SetUpSaveVariable 								; get ready to set up.
 		mov 	d,h 											; save HL in DE
 		mov 	e,l
@@ -682,6 +689,65 @@ __CP_Expression:
 ; ***********************************************************************************************
 ; ***********************************************************************************************
 ;
+;									if <expr><compare><expr>
+;
+; ***********************************************************************************************
+; ***********************************************************************************************
+
+COMMAND_If:
+		rst 	Evaluate 										; evaluate left expression into B
+		rst 	GetNextCharacter 								; get comparison character.
+		mvi 	c,-1 											; C will be -1,0,1 depending on character
+		cpi 	'<'
+		jz 		__CI_FoundCompare
+		inr 	c
+		cpi 	'='
+		jz 		__CI_FoundCompare
+		inr 	c
+		cpi 	'>'
+		jnz 	SyntaxError 									; wasn't < = > so SN error.
+
+__CI_FoundCompare:												; B left expr C -1 0 1 for < = >
+		mov 	d,h 											; save HL in DE
+		mov 	e,l
+		mvi 	h,UpdatePage/256 								; set HL to point to write area
+		mov 	l,h
+		mov 	m,c 											; save comparator
+		inr 	l
+		mov 	m,b 											; save LHExpr
+		mov 	h,d 											; copy DE to HL
+		mov 	l,e
+		rst 	Evaluate 										; get the right hand side.
+
+		mov 	d,h 											; save HL in DE
+		mov 	e,l 													
+		mvi 	h,UpdatePage/256 								; set HL to point to write area
+		mov 	l,h
+		mov 	c,m 											; read comparator into C
+		inr 	l
+		mov 	a,m 											; read left
+		sub 	b 												; subtract right
+		jz 		__CI_TestOver 									; if equal, if comparator zero its okay.
+		dcr 	c
+		jnc 	__CI_TestOver
+		inr 	c
+		inr 	c
+__CI_TestOver: 													; DE is code, if C is zero test passed.
+		mov 	l,e 											; put DE into HL
+		mov 	h,d
+		mov 	a,c 											; check if test passed.
+		ora 	a
+		jz 		CommandExecute 									; if so, then execute the command
+__CI_EndLine:
+		mov 	a,m 											; else skip to end of line.
+		ora 	a
+		jz 		CommandExecute
+		inr 	l
+		jmp 	__CI_EndLine
+
+; ***********************************************************************************************
+; ***********************************************************************************************
+;
 ;										new : erase program completely
 ;
 ; ***********************************************************************************************
@@ -736,10 +802,11 @@ __LC_Copy:
 		jmp 	__LC_Loop 										; next line.
 
 		org 	500h
-lcode:	db 		10,"let A=42",0
-		db 		20,"print A,A",0
-		db 		30,"stop",0
-		db 		100,"print \"fred\"",0
-		db 		110,"return",0
-
+lcode:	db 		10,"let A=1",0
+		db 		20,"if A.1=0 print A;\" even\" ",0
+		db 		30,"if A.1=1 print A;\" odd\" ",0
+		db 		40,"let A=A+1",0
+		db 		50,"if A<20 goto 20",0
+		db 		60,"print \"done\" ",0
 		db 		0
+

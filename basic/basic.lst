@@ -1,4 +1,4 @@
- AS V1.42 Beta [Bld 114] - source file basic.asm - page 1 - 31/12/2016 15:29:20
+ AS V1.42 Beta [Bld 114] - source file basic.asm - page 1 - 31/12/2016 16:34:56
 
 
        1/       0 :                     	
@@ -13,8 +13,8 @@
       10/       0 :                     ;	NOTE: Some commands have been renamed because only the first character matters
       11/       0 :                     ; 		  so RUN is now XECUTE and LIST is now VIEW
       12/       0 :                     ;
-      13/       0 :                     ;	goto <expression>					Go to line number.
-      14/       0 :                     ;	input <variable>					Input a number
+      13/       0 :                     ;	fetch <variable>					Input a number
+      14/       0 :                     ;	goto <expression>					Go to line number.
       15/       0 :                     ;	key <variable>						Input a single keystroke (ASCII value)
       16/       0 :                     ; 	let <variable> = <expression> 		Assignment.
       17/       0 :                     ;	new 								Erase current program.
@@ -28,7 +28,7 @@
       25/       0 :                     ;
       26/       0 :                     ;		call <line>
       27/       0 :                     ;		return
-      28/       0 :                     ;		if [!]<expr> [command] 
+      28/       0 :                     ;		if <expr>[>|<|=]<expr> [command] 
       29/       0 :                     ;
       30/       0 :                     
       31/       0 : =1000H              VariablePage = 	1000h 											; this page has variables offset from A = 0
@@ -51,7 +51,7 @@
       48/       0 : 0E 5D               		mvi	 	b,']' 											; print a ] prompt
       49/       2 : 15                  		rst 	PrintCharacter 									
       50/       3 : 1D                  		rst 	InputLine 										; get the line.
-      51/       4 : 46 DC 00            		call 	CommandExecute 									; execute it
+      51/       4 : 46 DF 00            		call 	CommandExecute 									; execute it
       52/       7 : 05                  		rst 	NextCommand 									; loop back.
       53/       8 :                     
       54/       8 :                     ; ***********************************************************************************************
@@ -61,7 +61,7 @@
       58/       8 :                     ;
       59/       8 :                     ; ***********************************************************************************************
       60/       8 :                     ; ***********************************************************************************************
- AS V1.42 Beta [Bld 114] - source file basic.asm - page 2 - 31/12/2016 15:29:20
+ AS V1.42 Beta [Bld 114] - source file basic.asm - page 2 - 31/12/2016 16:34:56
 
 
       61/       8 :                     
@@ -124,7 +124,7 @@
      118/      36 : F0                  		mov 	l,a 											; point HL to start of line.
      119/      37 : 07                  		ret
      120/      38 :                     
- AS V1.42 Beta [Bld 114] - source file basic.asm - page 3 - 31/12/2016 15:29:20
+ AS V1.42 Beta [Bld 114] - source file basic.asm - page 3 - 31/12/2016 16:34:56
 
 
      121/      38 :                     ; ***********************************************************************************************
@@ -160,634 +160,714 @@
      151/      45 :                     NextCharacter:
      152/      45 : 0D                  		rst 	GetNextCharacter 								; get next character.
      153/      46 : 14 3A               		sui 	58 												; 58 - 127 are maybe variables.
-     154/      48 : 50 72 00            		jp  	__IsVariable
+     154/      48 : 50 75 00            		jp  	__IsVariable
      155/      4B : 04 0A               		adi 	10 												; 0-9 for digits.
      156/      4D : 50 3D 00            		jp 		AddDigit 										; if that, add to current right and goback.
      157/      50 : 04 06               		adi 	6 												; 0-5 for * + , - . /
-     158/      52 : E0                  		mov 	e,a 											; save next operator in E.
-     159/      53 : 46 87 00            		call 	SubEvaluator 									; do operation 0-5.
-     160/      56 : C8                  		mov 	b,a 											; save the result in B
-     161/      57 : 1E 00               		mvi 	d,0  											; clear the right hand side.
-     162/      59 : D4                  		mov 	c,e 											; put next operator in C 
-     163/      5A : C2                  		mov 	a,c 											; look at that operator
-     164/      5B : B0                  		ora 	a 												; if +ve loop back next calculation
-     165/      5C : 50 45 00            		jp 		NextCharacter 
-     166/      5F : D9                  		mov 	d,b 											; put result in D
-     167/      60 :                     ExitEvaluate1:		
-     168/      60 : CB                  		mov 	b,d 											; put result in B
-     169/      61 : 31                  		dcr  	l 												; gone too far, go back one.
-     170/      62 : C1                  		mov 	a,b 											; get result to set up program pointer.
-     171/      63 :                     __LineNumberToDE:		
-     172/      63 : 34 80               		ori 	080h 											; set bit 7 , which will be bit 5 if shift x 2
-     173/      65 : 1A                  		rar 													; also CC for this.
-     174/      66 : D8                  		mov 	d,a 											; put shifted right once into D
-     175/      67 : 06 00               		mvi 	a,0 											; 
-     176/      69 : 1A                  		rar  													; will clear C again.
-     177/      6A : E0                  		mov 	e,a  									
-     178/      6B : C3                  		mov 	a,d 											; now shift DE right once more.
-     179/      6C : 1A                  		rar
-     180/      6D : D8                  		mov 	d,a
- AS V1.42 Beta [Bld 114] - source file basic.asm - page 4 - 31/12/2016 15:29:20
+     158/      52 :                     __EnterCalc:		
+     159/      52 : E0                  		mov 	e,a 											; save next operator in E.
+     160/      53 : 46 8A 00            		call 	SubEvaluator 									; do operation 0-5.
+     161/      56 : C8                  		mov 	b,a 											; save the result in B
+     162/      57 : 1E 00               		mvi 	d,0  											; clear the right hand side.
+     163/      59 : D4                  		mov 	c,e 											; put next operator in C 
+     164/      5A : C2                  		mov 	a,c 											; look at that operator
+     165/      5B : B0                  		ora 	a 												; if +ve loop back next calculation
+     166/      5C : 50 45 00            		jp 		NextCharacter 
+     167/      5F :                     ;		mov 	d,b 											; put result in D
+     168/      5F :                     ;ExitEvaluate1:		
+     169/      5F :                     ;		mov 	b,d 											; put result in B
+     170/      5F : 31                  		dcr  	l 												; gone too far, go back one.
+     171/      60 : C1                  		mov 	a,b 											; get result to set up program pointer.
+     172/      61 :                     __LineNumberToDE:		
+     173/      61 : 34 80               		ori 	080h 											; set bit 7 , which will be bit 5 if shift x 2
+     174/      63 : 1A                  		rar 													; also CC for this.
+     175/      64 : D8                  		mov 	d,a 											; put shifted right once into D
+     176/      65 : 06 00               		mvi 	a,0 											; 
+     177/      67 : 1A                  		rar  													; will clear C again.
+     178/      68 : E0                  		mov 	e,a  									
+     179/      69 : C3                  		mov 	a,d 											; now shift DE right once more.
+     180/      6A : 1A                  		rar
+ AS V1.42 Beta [Bld 114] - source file basic.asm - page 4 - 31/12/2016 16:34:56
 
 
-     181/      6E : C4                  		mov 	a,e 											; note :__LineNumberToDE is only used by the program
-     182/      6F : 1A                  		rar 													; loader code.
-     183/      70 : E0                  		mov		e,a
-     184/      71 : 07                  		ret
-     185/      72 :                     ;
-     186/      72 :                     ;		Variable ? A contains variable char - 58.
-     187/      72 :                     ;		
-     188/      72 :                     __IsVariable:
-     189/      72 : 14 21               		sui 	91-58 											; if >= 91 this will be +ve
-     190/      74 : 50 60 00            		jp 		ExitEvaluate1 								
-     191/      77 : 04 1A               		adi 	26 												; if 0-25 then legit.
-     192/      79 : 70 60 00            		jm 		ExitEvaluate1
-     193/      7C : E6                  		mov 	e,l 											; save L in E
-     194/      7D : F0                  		mov 	l,a 											; L is variable index
-     195/      7E : C5                  		mov 	a,h 											; save H in A
-     196/      7F : 2E 10               		mvi 	h,VariablePage/256 								; HL points to variable
-     197/      81 : DF                  		mov 	d,m 											; read value into D
-     198/      82 : E8                  		mov 	h,a 											; restore HL from AE
-     199/      83 : F4                  		mov 	l,e
-     200/      84 : 44 45 00            		jmp 	NextCharacter 									; and get the next character
-     201/      87 :                     ;
-     202/      87 :                     ;	We want to do B <op:D> C D = 0:* 1:+ 2:, 3:- 4:. 5:/ into A - don't change E 
-     203/      87 :                     ;
-     204/      87 :                     SubEvaluator:
-     205/      87 : 11                  		dcr 	c 												; check for multiply (0:*)
-     206/      88 : 70 AB 00            		jm 		__SEMultiply 
-     207/      8B : C1                  		mov 	a,b 											; work out add (1:+)
-     208/      8C : 83                  		add 	d
-     209/      8D : 11                  		dcr 	c
-     210/      8E : 33                  		rm 
-     211/      8F : C1                  		mov 	a,b 											; work out logical xor (2:,)
-     212/      90 : AB                  		xra 	d
-     213/      91 : 11                  		dcr 	c
-     214/      92 : 33                  		rm 
-     215/      93 : C1                  		mov 	a,b 											; work out subtract (3:-)
-     216/      94 : 93                  		sub 	d
-     217/      95 : 11                  		dcr 	c
-     218/      96 : 33                  		rm
-     219/      97 : C1                  		mov 	a,b 											; work out and (4:.)
-     220/      98 : A3                  		ana 	d
-     221/      99 : 11                  		dcr 	c
-     222/      9A : 33                  		rm
-     223/      9B :                     																; so it must be divide (5:/)
-     224/      9B : 46 A0 00            		call 	__SEDivide 										; the result is in C so saves a jump.
-     225/      9E : C2                  		mov 	a,c
-     226/      9F : 07                  		ret
-     227/      A0 :                     ;
-     228/      A0 :                     ;	subtractive division.
-     229/      A0 :                     ;
-     230/      A0 :                     __SEDivide:	
-     231/      A0 : C3                  		mov 	a,d 											; check divide by zero.
-     232/      A1 : B0                  		ora 	a 
-     233/      A2 : 2B                  		rz  													; will return $FF
-     234/      A3 : C1                  		mov 	a,b 											; subtract D from this N times. C = 0
-     235/      A4 :                     __SEDivide1:
-     236/      A4 : 93                  		sub 	d
-     237/      A5 : 23                  		rc
-     238/      A6 : 10                  		inr 	c
-     239/      A7 : 2B                  		rz
-     240/      A8 : 44 A4 00            		jmp 	__SEDivide1
- AS V1.42 Beta [Bld 114] - source file basic.asm - page 5 - 31/12/2016 15:29:20
+     181/      6B : D8                  		mov 	d,a
+     182/      6C : C4                  		mov 	a,e 											; note :__LineNumberToDE is only used by the program
+     183/      6D : 1A                  		rar 													; loader code.
+     184/      6E : E0                  		mov		e,a
+     185/      6F : 07                  		ret
+     186/      70 :                     
+     187/      70 :                     __ReEnterCalc:		
+     188/      70 : 06 FF               		mvi 	a,0FFh
+     189/      72 : 44 52 00            		jmp 	__EnterCalc 	
+     190/      75 :                     ;
+     191/      75 :                     ;		Variable ? A contains variable char - 58.
+     192/      75 :                     ;		
+     193/      75 :                     __IsVariable:
+     194/      75 : 14 21               		sui 	91-58 											; if >= 91 this will be +ve
+     195/      77 : 50 70 00            		jp 		__ReEnterCalc 								
+     196/      7A : 04 1A               		adi 	26 												; if 0-25 then legit.
+     197/      7C : 70 70 00            		jm 		__ReEnterCalc
+     198/      7F : E6                  		mov 	e,l 											; save L in E
+     199/      80 : F0                  		mov 	l,a 											; L is variable index
+     200/      81 : C5                  		mov 	a,h 											; save H in A
+     201/      82 : 2E 10               		mvi 	h,VariablePage/256 								; HL points to variable
+     202/      84 : DF                  		mov 	d,m 											; read value into D
+     203/      85 : E8                  		mov 	h,a 											; restore HL from AE
+     204/      86 : F4                  		mov 	l,e
+     205/      87 : 44 45 00            		jmp 	NextCharacter 									; and get the next character
+     206/      8A :                     ;
+     207/      8A :                     ;	We want to do B <op:D> C D = 0:* 1:+ 2:, 3:- 4:. 5:/ into A - don't change E 
+     208/      8A :                     ;
+     209/      8A :                     SubEvaluator:
+     210/      8A : 11                  		dcr 	c 												; check for multiply (0:*)
+     211/      8B : 70 AE 00            		jm 		__SEMultiply 
+     212/      8E : C1                  		mov 	a,b 											; work out add (1:+)
+     213/      8F : 83                  		add 	d
+     214/      90 : 11                  		dcr 	c
+     215/      91 : 33                  		rm 
+     216/      92 : C1                  		mov 	a,b 											; work out logical xor (2:,)
+     217/      93 : AB                  		xra 	d
+     218/      94 : 11                  		dcr 	c
+     219/      95 : 33                  		rm 
+     220/      96 : C1                  		mov 	a,b 											; work out subtract (3:-)
+     221/      97 : 93                  		sub 	d
+     222/      98 : 11                  		dcr 	c
+     223/      99 : 33                  		rm
+     224/      9A : C1                  		mov 	a,b 											; work out and (4:.)
+     225/      9B : A3                  		ana 	d
+     226/      9C : 11                  		dcr 	c
+     227/      9D : 33                  		rm
+     228/      9E :                     																; so it must be divide (5:/)
+     229/      9E : 46 A3 00            		call 	__SEDivide 										; the result is in C so saves a jump.
+     230/      A1 : C2                  		mov 	a,c
+     231/      A2 : 07                  		ret
+     232/      A3 :                     ;
+     233/      A3 :                     ;	subtractive division.
+     234/      A3 :                     ;
+     235/      A3 :                     __SEDivide:	
+     236/      A3 : C3                  		mov 	a,d 											; check divide by zero.
+     237/      A4 : B0                  		ora 	a 
+     238/      A5 : 2B                  		rz  													; will return $FF
+     239/      A6 : C1                  		mov 	a,b 											; subtract D from this N times. C = 0
+     240/      A7 :                     __SEDivide1:
+ AS V1.42 Beta [Bld 114] - source file basic.asm - page 5 - 31/12/2016 16:34:56
 
 
-     241/      AB :                     ;
-     242/      AB :                     ;	additive multiply
-     243/      AB :                     ;
-     244/      AB :                     __SEMultiply:	
-     245/      AB : A8                  		xra 	a 												; total. (*0 becomes *256)
-     246/      AC :                     __SEMultiply1:		
-     247/      AC : 81                  		add 	b 												; add B to 0 D times.
-     248/      AD : 19                  		dcr 	d
-     249/      AE : 48 AC 00            		jnz 	__SEMultiply1
-     250/      B1 : 07                  		ret
-     251/      B2 :                     
-     252/      B2 :                     ; ***********************************************************************************************
-     253/      B2 :                     ;
-     254/      B2 :                     ;								Print line at HL as its line number
-     255/      B2 :                     ;
-     256/      B2 :                     ; ***********************************************************************************************
-     257/      B2 :                     
-     258/      B2 :                     PrintLineNumber:
-     259/      B2 : C5                  		mov 	a,h
-     260/      B3 : 24 20               		ani 	20h 											; if not in program memory
-     261/      B5 : 2B                  		rz 														; don't print it.
-     262/      B6 : C6                  		mov 	a,l
-     263/      B7 : 80                  		add 	a
-     264/      B8 : D0                  		mov 	c,a
-     265/      B9 : C5                  		mov 	a,h
-     266/      BA : 8D                  		adc 	h
-     267/      BB : D8                  		mov 	d,a
-     268/      BC : C2                  		mov 	a,c
-     269/      BD : 82                  		add 	c
-     270/      BE : C3                  		mov 	a,d
-     271/      BF : 8B                  		adc 	d
-     272/      C0 : 24 7F               		ani 	07Fh
-     273/      C2 : D8                  		mov 	d,a
-     274/      C3 :                     
-     275/      C3 :                     ; ***********************************************************************************************
-     276/      C3 :                     ; ***********************************************************************************************
-     277/      C3 :                     ;
-     278/      C3 :                     ;									Print D as an integer
-     279/      C3 :                     ;
-     280/      C3 :                     ;	Breaks A,B,C,D
-     281/      C3 :                     ; ***********************************************************************************************
-     282/      C3 :                     ; ***********************************************************************************************
-     283/      C3 :                     
-     284/      C3 :                     PrintInteger:
-     285/      C3 : 16 64               		mvi 	c,100 											; initial divisor
-     286/      C5 :                     __PILoop:
-     287/      C5 : 0E 2F               		mvi 	b,'0'-1 										; character to print/count division
-     288/      C7 : C3                  		mov 	a,d 											; get integer
-     289/      C8 :                     __PIDivide:
-     290/      C8 : 08                  		inr 	b 												; one more 
-     291/      C9 : D8                  		mov 	d,a 											; put pre-subtract back.
-     292/      CA : 92                  		sub 	c												; subtract divisor
-     293/      CB : 40 C8 00            		jnc  	__PIDivide 										; keep going till a borrow.
-     294/      CE : 15                  		rst 	PrintCharacter 									; print the result.
-     295/      CF : C2                  		mov 	a,c  											; convert 100-10
-     296/      D0 : 14 5A               		sui 	90
-     297/      D2 : D0                  		mov 	c,a
-     298/      D3 : 40 C5 00            		jnc 	__PILoop 										; keep going if 10.
-     299/      D6 : C3                  		mov 	a,d 											; get what is left
-     300/      D7 : 34 30               		ori 	'0'												; make ASCII and print
- AS V1.42 Beta [Bld 114] - source file basic.asm - page 6 - 31/12/2016 15:29:20
+     241/      A7 : 93                  		sub 	d
+     242/      A8 : 23                  		rc
+     243/      A9 : 10                  		inr 	c
+     244/      AA : 2B                  		rz
+     245/      AB : 44 A7 00            		jmp 	__SEDivide1
+     246/      AE :                     ;
+     247/      AE :                     ;	additive multiply
+     248/      AE :                     ;
+     249/      AE :                     __SEMultiply:	
+     250/      AE : A8                  		xra 	a 												; total. (*0 becomes *256)
+     251/      AF :                     __SEMultiply1:		
+     252/      AF : 81                  		add 	b 												; add B to 0 D times.
+     253/      B0 : 19                  		dcr 	d
+     254/      B1 : 48 AF 00            		jnz 	__SEMultiply1
+     255/      B4 : 07                  		ret
+     256/      B5 :                     
+     257/      B5 :                     ; ***********************************************************************************************
+     258/      B5 :                     ;
+     259/      B5 :                     ;								Print line at HL as its line number
+     260/      B5 :                     ;
+     261/      B5 :                     ; ***********************************************************************************************
+     262/      B5 :                     
+     263/      B5 :                     PrintLineNumber:
+     264/      B5 : C5                  		mov 	a,h
+     265/      B6 : 24 20               		ani 	20h 											; if not in program memory
+     266/      B8 : 2B                  		rz 														; don't print it.
+     267/      B9 : C6                  		mov 	a,l
+     268/      BA : 80                  		add 	a
+     269/      BB : D0                  		mov 	c,a
+     270/      BC : C5                  		mov 	a,h
+     271/      BD : 8D                  		adc 	h
+     272/      BE : D8                  		mov 	d,a
+     273/      BF : C2                  		mov 	a,c
+     274/      C0 : 82                  		add 	c
+     275/      C1 : C3                  		mov 	a,d
+     276/      C2 : 8B                  		adc 	d
+     277/      C3 : 24 7F               		ani 	07Fh
+     278/      C5 : D8                  		mov 	d,a
+     279/      C6 :                     
+     280/      C6 :                     ; ***********************************************************************************************
+     281/      C6 :                     ; ***********************************************************************************************
+     282/      C6 :                     ;
+     283/      C6 :                     ;									Print D as an integer
+     284/      C6 :                     ;
+     285/      C6 :                     ;	Breaks A,B,C,D
+     286/      C6 :                     ; ***********************************************************************************************
+     287/      C6 :                     ; ***********************************************************************************************
+     288/      C6 :                     
+     289/      C6 :                     PrintInteger:
+     290/      C6 : 16 64               		mvi 	c,100 											; initial divisor
+     291/      C8 :                     __PILoop:
+     292/      C8 : 0E 2F               		mvi 	b,'0'-1 										; character to print/count division
+     293/      CA : C3                  		mov 	a,d 											; get integer
+     294/      CB :                     __PIDivide:
+     295/      CB : 08                  		inr 	b 												; one more 
+     296/      CC : D8                  		mov 	d,a 											; put pre-subtract back.
+     297/      CD : 92                  		sub 	c												; subtract divisor
+     298/      CE : 40 CB 00            		jnc  	__PIDivide 										; keep going till a borrow.
+     299/      D1 : 15                  		rst 	PrintCharacter 									; print the result.
+     300/      D2 : C2                  		mov 	a,c  											; convert 100-10
+ AS V1.42 Beta [Bld 114] - source file basic.asm - page 6 - 31/12/2016 16:34:56
 
 
-     301/      D9 : C8                  		mov 	b,a 											; it out.
-     302/      DA : 15                  		rst 	PrintCharacter
-     303/      DB : 07                  		ret
-     304/      DC :                     
-     305/      DC :                     ; ***********************************************************************************************
-     306/      DC :                     ; ***********************************************************************************************
-     307/      DC :                     ;
-     308/      DC :                     ;										Execute Command at (HL)
-     309/      DC :                     ;
-     310/      DC :                     ; ***********************************************************************************************
-     311/      DC :                     ; ***********************************************************************************************
-     312/      DC :                     
-     313/      DC :                     CommandExecute:
-     314/      DC : 0D                  		rst 	GetNextCharacter 								; get character.
-     315/      DD : C8                  		mov 	b,a 											; save in B
-     316/      DE : 12                  		ral 													; shift left bit 6 into bit 7. basic # test
-     317/      DF : B0                  		ora 	a 												; check if zero, signed.
-     318/      E0 : 2B                  		rz
-     319/      E1 : 50 36 01            		jp 		ProgramLine 									; if +ve it is a
-     320/      E4 :                     
-     321/      E4 :                     __SkipOverKeyword:
-     322/      E4 : 0D                  		rst 	GetNextCharacter 								; get character
-     323/      E5 : 04 9F               		adi 	256-97 											; CS if >= 97 e.g. lower case keyword
-     324/      E7 : 60 E4 00            		jc 		__SkipOverKeyword 
-     325/      EA : 31                  		dcr 	l  												; unpick the last get.
-     326/      EB : C1                  		mov 	a,b 											; get the first character back.
-     327/      EC :                     
-     328/      EC : 3C 67               		cpi 	'g' 											; these ones come first, they change HL page.
-     329/      EE : 68 95 01            		jz 		COMMAND_Goto
-     330/      F1 :                     
-     331/      F1 : 46 FB 00            		call 	__CExecOne 										; execute one command.
-     332/      F4 : 0D                  		rst 	GetNextCharacter 								; next is :
-     333/      F5 : 3C 3A               		cpi 	':'
-     334/      F7 : 68 DC 00            		jz 		CommandExecute
-     335/      FA : 07                  		ret
-     336/      FB :                     
-     337/      FB :                     __CExecOne:
-     338/      FB : 3C 6F               		cpi 	'o' 											; commands which won't change HL page.
-     339/      FD : 68 7A 01            		jz 		COMMAND_Out 
-     340/     100 : 3C 6C               		cpi 	'l'
-     341/     102 : 68 9E 01            		jz 		COMMAND_Let
-     342/     105 : 3C 70               		cpi 	'p'
-     343/     107 : 68 02 02            		jz 		COMMAND_Print 	
-     344/     10A : 3C 6B               		cpi 	'k'
-     345/     10C : 68 F5 01            		jz 		COMMAND_Key
-     346/     10F : 3C 69               		cpi 	'i'
-     347/     111 : 68 D8 01            		jz 		COMMAND_Input
-     348/     114 : 3C 78               		cpi 	'x' 											; these ones are not speed important
-     349/     116 : 68 81 01            		jz 		COMMAND_eXecute
-     350/     119 : 3C 76               		cpi 	'v' 	
-     351/     11B : 68 48 01            		jz 		COMMAND_View
-     352/     11E : 3C 6E               		cpi 	'n'
-     353/     120 : 68 41 02            		jz 		COMMAND_New
-     354/     123 : 3C 73               		cpi 	's' 
-     355/     125 : 68 94 01            		jz 		COMMAND_Stop
-     356/     128 : 16 43               		mvi 	c,'C' 											; command error.
-     357/     12A :                     
-     358/     12A :                     ; ***********************************************************************************************
-     359/     12A :                     ;
-     360/     12A :                     ;								Report error, character code in C
- AS V1.42 Beta [Bld 114] - source file basic.asm - page 7 - 31/12/2016 15:29:20
+     301/      D3 : 14 5A               		sui 	90
+     302/      D5 : D0                  		mov 	c,a
+     303/      D6 : 40 C8 00            		jnc 	__PILoop 										; keep going if 10.
+     304/      D9 : C3                  		mov 	a,d 											; get what is left
+     305/      DA : 34 30               		ori 	'0'												; make ASCII and print
+     306/      DC : C8                  		mov 	b,a 											; it out.
+     307/      DD : 15                  		rst 	PrintCharacter
+     308/      DE : 07                  		ret
+     309/      DF :                     
+     310/      DF :                     ; ***********************************************************************************************
+     311/      DF :                     ; ***********************************************************************************************
+     312/      DF :                     ;
+     313/      DF :                     ;										Execute Command at (HL)
+     314/      DF :                     ;
+     315/      DF :                     ; ***********************************************************************************************
+     316/      DF :                     ; ***********************************************************************************************
+     317/      DF :                     
+     318/      DF :                     CommandExecute:
+     319/      DF : 0D                  		rst 	GetNextCharacter 								; get character.
+     320/      E0 : C8                  		mov 	b,a 											; save in B
+     321/      E1 : 12                  		ral 													; shift left bit 6 into bit 7. basic # test
+     322/      E2 : B0                  		ora 	a 												; check if zero, signed.
+     323/      E3 : 2B                  		rz
+     324/      E4 : 50 3E 01            		jp 		ProgramLine 									; if +ve it is a
+     325/      E7 :                     
+     326/      E7 :                     __SkipOverKeyword:
+     327/      E7 : 0D                  		rst 	GetNextCharacter 								; get character
+     328/      E8 : 04 9F               		adi 	256-97 											; CS if >= 97 e.g. lower case keyword
+     329/      EA : 60 E7 00            		jc 		__SkipOverKeyword 
+     330/      ED : 31                  		dcr 	l  												; unpick the last get.
+     331/      EE : C1                  		mov 	a,b 											; get the first character back.
+     332/      EF :                     
+     333/      EF : 3C 67               		cpi 	'g' 											; these ones come first, they change HL page.
+     334/      F1 : 68 9D 01            		jz 		COMMAND_Goto
+     335/      F4 : 3C 69               		cpi 	'i'
+     336/      F6 : 68 49 02            		jz 		COMMAND_If
+     337/      F9 :                     
+     338/      F9 : 46 03 01            		call 	__CExecOne 										; execute one command.
+     339/      FC : 0D                  		rst 	GetNextCharacter 								; next is :
+     340/      FD : 3C 3A               		cpi 	':'
+     341/      FF : 68 DF 00            		jz 		CommandExecute
+     342/     102 : 07                  		ret
+     343/     103 :                     
+     344/     103 :                     __CExecOne:
+     345/     103 : 3C 6F               		cpi 	'o' 											; commands which won't change HL page.
+     346/     105 : 68 82 01            		jz 		COMMAND_Out 
+     347/     108 : 3C 6C               		cpi 	'l'
+     348/     10A : 68 A6 01            		jz 		COMMAND_Let
+     349/     10D : 3C 70               		cpi 	'p'
+     350/     10F : 68 0A 02            		jz 		COMMAND_Print 	
+     351/     112 : 3C 6B               		cpi 	'k'
+     352/     114 : 68 FD 01            		jz 		COMMAND_Key
+     353/     117 : 3C 66               		cpi 	'f'
+     354/     119 : 68 E0 01            		jz 		COMMAND_Fetch
+     355/     11C : 3C 78               		cpi 	'x' 											; these ones are not speed important
+     356/     11E : 68 89 01            		jz 		COMMAND_eXecute
+     357/     121 : 3C 76               		cpi 	'v' 	
+     358/     123 : 68 50 01            		jz 		COMMAND_View
+     359/     126 : 3C 6E               		cpi 	'n'
+     360/     128 : 68 8B 02            		jz 		COMMAND_New
+ AS V1.42 Beta [Bld 114] - source file basic.asm - page 7 - 31/12/2016 16:34:56
 
 
-     361/     12A :                     ;
-     362/     12A :                     ; ***********************************************************************************************
-     363/     12A :                     
-     364/     12A : 0E 3F               Error: 	mvi 	b,'?' 											; print ?
-     365/     12C : 15                  		rst 	PrintCharacter
-     366/     12D : CA                  		mov 	b,c
-     367/     12E : 15                  		rst 	PrintCharacter 									; print error code
-     368/     12F : 0E 40               		mvi 	b,'@' 											; print @
-     369/     131 : 15                  		rst 	PrintCharacter 
-     370/     132 : 46 B2 00            		call 	PrintLineNumber 								; print line number
-     371/     135 : 05                  		rst 	NextCommand 									; go to command loop.
-     372/     136 :                     
-     373/     136 :                     ; ***********************************************************************************************
-     374/     136 :                     ;
-     375/     136 :                     ;									Put a program line into memory.
-     376/     136 :                     ;
-     377/     136 :                     ; ***********************************************************************************************
-     378/     136 :                     
-     379/     136 :                     ProgramLine:
-     380/     136 : 31                  		dcr 	l 												; backspace to first character
-     381/     137 : 3D                  		rst 	Evaluate 										; get line number into B, address into DE
-     382/     138 : D6                  		mov 	c,l 											; C is the low byte of the input line.
-     383/     139 : C1                  		mov 	a,b 											; exit if the line number is zero
-     384/     13A :                     __PLCopy:
-     385/     13A : B0                  		ora 	a
-     386/     13B : 2B                  		rz		
-     387/     13C : F2                  		mov 	l,c 											; read next byte from input line.
-     388/     13D : 2E 11               		mvi 	h,InputPage/256		
-     389/     13F : C7                  		mov 	a,m
-     390/     140 : EB                  		mov 	h,d 											; write it out to address DE
-     391/     141 : F4                  		mov 	l,e
-     392/     142 : F8                  		mov 	m,a
-     393/     143 : 10                  		inr 	c 												; increment two pointers
-     394/     144 : 20                  		inr 	e 
-     395/     145 : 44 3A 01            		jmp 	__PLCopy 										; jump back and return if zero.
-     396/     148 :                     
-     397/     148 :                     ; ***********************************************************************************************
-     398/     148 :                     ; ***********************************************************************************************
-     399/     148 :                     ;
-     400/     148 :                     ;									view [<start line>] : list program
-     401/     148 :                     ;
-     402/     148 :                     ; ***********************************************************************************************
-     403/     148 :                     ; ***********************************************************************************************
-     404/     148 :                     
-     405/     148 :                     COMMAND_View:
-     406/     148 : 3D                  		rst 	Evaluate 										; line number in B, address in DE.
-     407/     149 : EB                  		mov 	h,d 											; put line address in HL.
-     408/     14A : F4                  		mov 	l,e 							 
-     409/     14B : 26 0C               		mvi 	e,12 											; E is the number to print.
-     410/     14D :                     __CL_Loop:
-     411/     14D : C7                  		mov 	a,m 											; look at the code
-     412/     14E : B0                  		ora 	a 												; if zero don't list it
-     413/     14F : 68 66 01            		jz 		__CL_Next
-     414/     152 : 46 B2 00            		call 	PrintLineNumber 								; line
-     415/     155 : 0E 20               		mvi 	b,' ' 											; space
-     416/     157 :                     __CL_Print:
-     417/     157 : 15                  		rst 	PrintCharacter 									; print
-     418/     158 : CF                  		mov 	b,m 											; put char in B for printing
-     419/     159 : 30                  		inr 	l 												; advance pointer
-     420/     15A : C1                  		mov 	a,b 											; loop back if nz
- AS V1.42 Beta [Bld 114] - source file basic.asm - page 8 - 31/12/2016 15:29:20
+     361/     12B : 3C 73               		cpi 	's' 
+     362/     12D : 68 9C 01            		jz 		COMMAND_Stop
+     363/     130 : 16 43               		mvi 	c,'C' 											; command error.
+     364/     132 :                     
+     365/     132 :                     ; ***********************************************************************************************
+     366/     132 :                     ;
+     367/     132 :                     ;								Report error, character code in C
+     368/     132 :                     ;
+     369/     132 :                     ; ***********************************************************************************************
+     370/     132 :                     
+     371/     132 : 0E 3F               Error: 	mvi 	b,'?' 											; print ?
+     372/     134 : 15                  		rst 	PrintCharacter
+     373/     135 : CA                  		mov 	b,c
+     374/     136 : 15                  		rst 	PrintCharacter 									; print error code
+     375/     137 : 0E 40               		mvi 	b,'@' 											; print @
+     376/     139 : 15                  		rst 	PrintCharacter 
+     377/     13A : 46 B5 00            		call 	PrintLineNumber 								; print line number
+     378/     13D : 05                  		rst 	NextCommand 									; go to command loop.
+     379/     13E :                     
+     380/     13E :                     ; ***********************************************************************************************
+     381/     13E :                     ;
+     382/     13E :                     ;									Put a program line into memory.
+     383/     13E :                     ;
+     384/     13E :                     ; ***********************************************************************************************
+     385/     13E :                     
+     386/     13E :                     ProgramLine:
+     387/     13E : 31                  		dcr 	l 												; backspace to first character
+     388/     13F : 3D                  		rst 	Evaluate 										; get line number into B, address into DE
+     389/     140 : D6                  		mov 	c,l 											; C is the low byte of the input line.
+     390/     141 : C1                  		mov 	a,b 											; exit if the line number is zero
+     391/     142 :                     __PLCopy:
+     392/     142 : B0                  		ora 	a
+     393/     143 : 2B                  		rz		
+     394/     144 : F2                  		mov 	l,c 											; read next byte from input line.
+     395/     145 : 2E 11               		mvi 	h,InputPage/256		
+     396/     147 : C7                  		mov 	a,m
+     397/     148 : EB                  		mov 	h,d 											; write it out to address DE
+     398/     149 : F4                  		mov 	l,e
+     399/     14A : F8                  		mov 	m,a
+     400/     14B : 10                  		inr 	c 												; increment two pointers
+     401/     14C : 20                  		inr 	e 
+     402/     14D : 44 42 01            		jmp 	__PLCopy 										; jump back and return if zero.
+     403/     150 :                     
+     404/     150 :                     ; ***********************************************************************************************
+     405/     150 :                     ; ***********************************************************************************************
+     406/     150 :                     ;
+     407/     150 :                     ;									view [<start line>] : list program
+     408/     150 :                     ;
+     409/     150 :                     ; ***********************************************************************************************
+     410/     150 :                     ; ***********************************************************************************************
+     411/     150 :                     
+     412/     150 :                     COMMAND_View:
+     413/     150 : 3D                  		rst 	Evaluate 										; line number in B, address in DE.
+     414/     151 : EB                  		mov 	h,d 											; put line address in HL.
+     415/     152 : F4                  		mov 	l,e 							 
+     416/     153 : 26 0C               		mvi 	e,12 											; E is the number to print.
+     417/     155 :                     __CL_Loop:
+     418/     155 : C7                  		mov 	a,m 											; look at the code
+     419/     156 : B0                  		ora 	a 												; if zero don't list it
+     420/     157 : 68 6E 01            		jz 		__CL_Next
+ AS V1.42 Beta [Bld 114] - source file basic.asm - page 8 - 31/12/2016 16:34:56
 
 
-     421/     15B : B0                  		ora 	a
-     422/     15C : 48 57 01            		jnz 	__CL_Print
-     423/     15F : 0E 0D               		mvi 	b,13 											; print new line.
-     424/     161 : 15                  		rst 	PrintCharacter
-     425/     162 : 21                  		dcr 	e 												; do 12 lines.
-     426/     163 : 68 00 00            		jz 		NextCommand
-     427/     166 :                     __CL_Next:
-     428/     166 : 46 6D 01            		call 	NextLine
-     429/     169 : 48 4D 01            		jnz 	__CL_Loop 										; go back. 
-     430/     16C : 05                  		rst 	NextCommand
-     431/     16D :                     
-     432/     16D :                     ; ***********************************************************************************************
-     433/     16D :                     ;
-     434/     16D :                     ;			Advance pointer HL to next line. Return Z flag set if end of program
-     435/     16D :                     ;
-     436/     16D :                     ; ***********************************************************************************************
-     437/     16D :                     
-     438/     16D :                     NextLine:
-     439/     16D : C6                  		mov 	a,l 											; go to next line. 
-     440/     16E : 24 C0               		ani 	0C0h
-     441/     170 : 04 40               		adi 	64
-     442/     172 : F0                  		mov 	l,a
-     443/     173 : C5                  		mov 	a,h
-     444/     174 : 0C 00               		aci 	0
-     445/     176 : E8                  		mov 	h,a
-     446/     177 : 3C 40               		cpi 	40h 											; reached end of program memory
-     447/     179 : 07                  		ret
-     448/     17A :                     
-     449/     17A :                     ; ***********************************************************************************************
-     450/     17A :                     ; ***********************************************************************************************
-     451/     17A :                     ;
-     452/     17A :                     ;							out <expression> prints a character
-     453/     17A :                     ;
-     454/     17A :                     ; ***********************************************************************************************
-     455/     17A :                     ; ***********************************************************************************************
-     456/     17A :                     
-     457/     17A :                     COMMAND_Out:
-     458/     17A : 3D                  		rst 	Evaluate 										; out what ?
-     459/     17B : C1                  		mov 	a,b 											; check not zero
-     460/     17C : 24 7F               		ani 	07Fh
-     461/     17E : 2B                  		rz  													; if so, exit.
-     462/     17F : 15                  		rst 	PrintCharacter
-     463/     180 : 07                  		ret
-     464/     181 :                     
-     465/     181 :                     ; ***********************************************************************************************
-     466/     181 :                     ; ***********************************************************************************************
-     467/     181 :                     ;
-     468/     181 :                     ;									Xecute : Run program
-     469/     181 :                     ;
-     470/     181 :                     ; ***********************************************************************************************
-     471/     181 :                     ; ***********************************************************************************************
-     472/     181 :                     
-     473/     181 :                     COMMAND_eXecute:
-     474/     181 : 2E 20               		mvi 	h,ProgramMemory / 256 							; start from here
-     475/     183 : 36 00               		mvi 	l,0 
-     476/     185 :                     __CR_Loop:
-     477/     185 : 41                  		in 		0 												; check for Backspaces which exits.
-     478/     186 : 3C 08               		cpi 	8
-     479/     188 : 68 94 01            		jz 		COMMAND_Stop
-     480/     18B : 46 DC 00            		call 	CommandExecute 									; execute one line
- AS V1.42 Beta [Bld 114] - source file basic.asm - page 9 - 31/12/2016 15:29:20
+     421/     15A : 46 B5 00            		call 	PrintLineNumber 								; line
+     422/     15D : 0E 20               		mvi 	b,' ' 											; space
+     423/     15F :                     __CL_Print:
+     424/     15F : 15                  		rst 	PrintCharacter 									; print
+     425/     160 : CF                  		mov 	b,m 											; put char in B for printing
+     426/     161 : 30                  		inr 	l 												; advance pointer
+     427/     162 : C1                  		mov 	a,b 											; loop back if nz
+     428/     163 : B0                  		ora 	a
+     429/     164 : 48 5F 01            		jnz 	__CL_Print
+     430/     167 : 0E 0D               		mvi 	b,13 											; print new line.
+     431/     169 : 15                  		rst 	PrintCharacter
+     432/     16A : 21                  		dcr 	e 												; do 12 lines.
+     433/     16B : 68 00 00            		jz 		NextCommand
+     434/     16E :                     __CL_Next:
+     435/     16E : 46 75 01            		call 	NextLine
+     436/     171 : 48 55 01            		jnz 	__CL_Loop 										; go back. 
+     437/     174 : 05                  		rst 	NextCommand
+     438/     175 :                     
+     439/     175 :                     ; ***********************************************************************************************
+     440/     175 :                     ;
+     441/     175 :                     ;			Advance pointer HL to next line. Return Z flag set if end of program
+     442/     175 :                     ;
+     443/     175 :                     ; ***********************************************************************************************
+     444/     175 :                     
+     445/     175 :                     NextLine:
+     446/     175 : C6                  		mov 	a,l 											; go to next line. 
+     447/     176 : 24 C0               		ani 	0C0h
+     448/     178 : 04 40               		adi 	64
+     449/     17A : F0                  		mov 	l,a
+     450/     17B : C5                  		mov 	a,h
+     451/     17C : 0C 00               		aci 	0
+     452/     17E : E8                  		mov 	h,a
+     453/     17F : 3C 40               		cpi 	40h 											; reached end of program memory
+     454/     181 : 07                  		ret
+     455/     182 :                     
+     456/     182 :                     ; ***********************************************************************************************
+     457/     182 :                     ; ***********************************************************************************************
+     458/     182 :                     ;
+     459/     182 :                     ;							out <expression> prints a character
+     460/     182 :                     ;
+     461/     182 :                     ; ***********************************************************************************************
+     462/     182 :                     ; ***********************************************************************************************
+     463/     182 :                     
+     464/     182 :                     COMMAND_Out:
+     465/     182 : 3D                  		rst 	Evaluate 										; out what ?
+     466/     183 : C1                  		mov 	a,b 											; check not zero
+     467/     184 : 24 7F               		ani 	07Fh
+     468/     186 : 2B                  		rz  													; if so, exit.
+     469/     187 : 15                  		rst 	PrintCharacter
+     470/     188 : 07                  		ret
+     471/     189 :                     
+     472/     189 :                     ; ***********************************************************************************************
+     473/     189 :                     ; ***********************************************************************************************
+     474/     189 :                     ;
+     475/     189 :                     ;									Xecute : Run program
+     476/     189 :                     ;
+     477/     189 :                     ; ***********************************************************************************************
+     478/     189 :                     ; ***********************************************************************************************
+     479/     189 :                     
+     480/     189 :                     COMMAND_eXecute:
+ AS V1.42 Beta [Bld 114] - source file basic.asm - page 9 - 31/12/2016 16:34:56
 
 
-     481/     18E : 46 6D 01            		call 	NextLine 										; go to next line
-     482/     191 : 48 85 01            		jnz 	__CR_Loop 											
-     483/     194 :                     COMMAND_Stop:		
-     484/     194 : 05                  		rst   	NextCommand 									; end of program, go to next command.
-     485/     195 :                     
-     486/     195 :                     ; ***********************************************************************************************
-     487/     195 :                     ; ***********************************************************************************************
-     488/     195 :                     ;
-     489/     195 :                     ;										Go to a new line
-     490/     195 :                     ;
-     491/     195 :                     ; ***********************************************************************************************
-     492/     195 :                     ; ***********************************************************************************************
-     493/     195 :                     
-     494/     195 :                     COMMAND_Goto:
-     495/     195 : 3D                  		rst 	Evaluate 										; evaluate line to go to
-     496/     196 : F4                  		mov 	l,e 											; copy address to DE
-     497/     197 : EB                  		mov 	h,d
-     498/     198 : C1                  		mov 	a,b 											; if number found.
-     499/     199 : B0                  		ora 	a
-     500/     19A : 48 DC 00            		jnz 	CommandExecute 									; then go there.
-     501/     19D : 05                  		rst 	NextCommand 									; goto 0 [stop]
-     502/     19E :                     
-     503/     19E :                     ; ***********************************************************************************************
-     504/     19E :                     ; ***********************************************************************************************
-     505/     19E :                     ;
-     506/     19E :                     ;									let <variable> = <expression>
-     507/     19E :                     ;
-     508/     19E :                     ; ***********************************************************************************************
-     509/     19E :                     ; ***********************************************************************************************
-     510/     19E :                     
-     511/     19E :                     COMMAND_Let:
-     512/     19E : 46 B8 01            		call 	SetUpSaveVariable 								; code to set up variable update.
-     513/     1A1 : 0D                  		rst 	GetNextCharacter  								; check for equal
-     514/     1A2 : 3C 3D               		cpi 	'='
-     515/     1A4 : 48 B3 01            		jnz 	SyntaxError
-     516/     1A7 : 3D                  		rst 	Evaluate 										; evaluate RHS.
-     517/     1A8 :                     
-     518/     1A8 :                     ; ***********************************************************************************************
-     519/     1A8 :                     ;
-     520/     1A8 :                     ;								Save value in B in preset variable
-     521/     1A8 :                     ;
-     522/     1A8 :                     ; ***********************************************************************************************
-     523/     1A8 :                     
-     524/     1A8 :                     SaveBInVar:
-     525/     1A8 : DD                  		mov 	d,h 					 						; save HL
-     526/     1A9 : E6                  		mov 	e,l
-     527/     1AA : 46 00 12            		call 	UpdatePage 										; load L.
-     528/     1AD : 2E 10               		mvi 	h,VariablePage/256 								; and H.
-     529/     1AF : F9                  		mov 	m,b 											; write result out.
-     530/     1B0 : EB                  		mov 	h,d 											; restore HL
-     531/     1B1 : F4                  		mov 	l,e
-     532/     1B2 : 07                  		ret  													; and done.
-     533/     1B3 :                     
-     534/     1B3 :                     ; ***********************************************************************************************
-     535/     1B3 :                     ;
-     536/     1B3 :                     ;										Report Syntax Error
-     537/     1B3 :                     ;
-     538/     1B3 :                     ; ***********************************************************************************************
-     539/     1B3 :                     
-     540/     1B3 :                     SyntaxError: 													; (S)yntax error
- AS V1.42 Beta [Bld 114] - source file basic.asm - page 10 - 31/12/2016 15:29:20
+     481/     189 : 2E 20               		mvi 	h,ProgramMemory / 256 							; start from here
+     482/     18B : 36 00               		mvi 	l,0 
+     483/     18D :                     __CR_Loop:
+     484/     18D : 41                  		in 		0 												; check for Backspaces which exits.
+     485/     18E : 3C 08               		cpi 	8
+     486/     190 : 68 9C 01            		jz 		COMMAND_Stop
+     487/     193 : 46 DF 00            		call 	CommandExecute 									; execute one line
+     488/     196 : 46 75 01            		call 	NextLine 										; go to next line
+     489/     199 : 48 8D 01            		jnz 	__CR_Loop 											
+     490/     19C :                     COMMAND_Stop:		
+     491/     19C : 05                  		rst   	NextCommand 									; end of program, go to next command.
+     492/     19D :                     
+     493/     19D :                     ; ***********************************************************************************************
+     494/     19D :                     ; ***********************************************************************************************
+     495/     19D :                     ;
+     496/     19D :                     ;										Go to a new line
+     497/     19D :                     ;
+     498/     19D :                     ; ***********************************************************************************************
+     499/     19D :                     ; ***********************************************************************************************
+     500/     19D :                     
+     501/     19D :                     COMMAND_Goto:
+     502/     19D : 3D                  		rst 	Evaluate 										; evaluate line to go to
+     503/     19E : F4                  		mov 	l,e 											; copy address to DE
+     504/     19F : EB                  		mov 	h,d
+     505/     1A0 : C1                  		mov 	a,b 											; if number found.
+     506/     1A1 : B0                  		ora 	a
+     507/     1A2 : 48 DF 00            		jnz 	CommandExecute 									; then go there.
+     508/     1A5 : 05                  		rst 	NextCommand 									; goto 0 [stop]
+     509/     1A6 :                     
+     510/     1A6 :                     ; ***********************************************************************************************
+     511/     1A6 :                     ; ***********************************************************************************************
+     512/     1A6 :                     ;
+     513/     1A6 :                     ;									let <variable> = <expression>
+     514/     1A6 :                     ;
+     515/     1A6 :                     ; ***********************************************************************************************
+     516/     1A6 :                     ; ***********************************************************************************************
+     517/     1A6 :                     
+     518/     1A6 :                     COMMAND_Let:
+     519/     1A6 : 46 C0 01            		call 	SetUpSaveVariable 								; code to set up variable update.
+     520/     1A9 : 0D                  		rst 	GetNextCharacter  								; check for equal
+     521/     1AA : 3C 3D               		cpi 	'='
+     522/     1AC : 48 BB 01            		jnz 	SyntaxError
+     523/     1AF : 3D                  		rst 	Evaluate 										; evaluate RHS.
+     524/     1B0 :                     
+     525/     1B0 :                     ; ***********************************************************************************************
+     526/     1B0 :                     ;
+     527/     1B0 :                     ;								Save value in B in preset variable
+     528/     1B0 :                     ;
+     529/     1B0 :                     ; ***********************************************************************************************
+     530/     1B0 :                     
+     531/     1B0 :                     SaveBInVar:
+     532/     1B0 : DD                  		mov 	d,h 					 						; save HL
+     533/     1B1 : E6                  		mov 	e,l
+     534/     1B2 : 46 00 12            		call 	UpdatePage 										; load L.
+     535/     1B5 : 2E 10               		mvi 	h,VariablePage/256 								; and H.
+     536/     1B7 : F9                  		mov 	m,b 											; write result out.
+     537/     1B8 : EB                  		mov 	h,d 											; restore HL
+     538/     1B9 : F4                  		mov 	l,e
+     539/     1BA : 07                  		ret  													; and done.
+     540/     1BB :                     
+ AS V1.42 Beta [Bld 114] - source file basic.asm - page 10 - 31/12/2016 16:34:56
 
 
-     541/     1B3 : 16 53               		mvi 	c,'S'
-     542/     1B5 : 44 2A 01            		jmp 	Error
-     543/     1B8 :                     
-     544/     1B8 :                     ; ***********************************************************************************************
-     545/     1B8 :                     ;
-     546/     1B8 :                     ;				Set up to save a value in next variable in line. (puts MVI L,nn;RET)
-     547/     1B8 :                     ;
-     548/     1B8 :                     ; ***********************************************************************************************
-     549/     1B8 :                     
-     550/     1B8 :                     SetUpSaveVariable:
-     551/     1B8 : 0D                  		rst 	GetNextCharacter 								; get the character
-     552/     1B9 : 14 5B               		sui 	65+26 											; check if > 'Z'.
-     553/     1BB : 50 D3 01            		jp 		__SUSError
-     554/     1BE : 04 1A               		adi 	26 												; check if < 'A'
-     555/     1C0 : 70 D3 01            		jm 		__SUSError
-     556/     1C3 : DD                  		mov 	d,h 											; save HL.
-     557/     1C4 : E6                  		mov 	e,l
-     558/     1C5 : 2E 12               		mvi 	h,UpdatePage/256 								; HL points to update page.
-     559/     1C7 : 36 00               		mvi 	l,0
-     560/     1C9 : 3E 36               		mvi 	m,036h 											; MVI L command
-     561/     1CB : 30                  		inr 	l
-     562/     1CC : F8                  		mov 	m,a 											; address to load into L
-     563/     1CD : 30                  		inr 	l
-     564/     1CE : 3E 07               		mvi 	m,7 											; RET
-     565/     1D0 : EB                  		mov 	h,d 											; restore HL
-     566/     1D1 : F4                  		mov 	l,e
-     567/     1D2 : 07                  		ret
-     568/     1D3 :                     __SUSError:
-     569/     1D3 : 16 56               		mvi 	c,'V' 											; report (V)ariable error.
-     570/     1D5 : 44 2A 01            		jmp 	Error
-     571/     1D8 :                     
-     572/     1D8 :                     ; ***********************************************************************************************
-     573/     1D8 :                     ; ***********************************************************************************************
-     574/     1D8 :                     ;
-     575/     1D8 :                     ;											input <variable>
-     576/     1D8 :                     ;
-     577/     1D8 :                     ; ***********************************************************************************************
-     578/     1D8 :                     ; ***********************************************************************************************
-     579/     1D8 :                     
-     580/     1D8 :                     Command_Input:
-     581/     1D8 : 46 B8 01            		call 	SetUpSaveVariable 								; get ready to set up.
-     582/     1DB : DD                  		mov 	d,h 											; save HL in DE
-     583/     1DC : E6                  		mov 	e,l
-     584/     1DD : 2E 12               		mvi 	h,UpdatePage/256 								; save HL in update page
-     585/     1DF : 36 10               		mvi 	l,10h
-     586/     1E1 : FB                  		mov 	m,d
-     587/     1E2 : 30                  		inr 	l
-     588/     1E3 : FC                  		mov 	m,e
-     589/     1E4 : 0E 3F               		mvi 	b,'?'											; prompt
-     590/     1E6 : 15                  		rst 	PrintCharacter
-     591/     1E7 : 1D                  		rst 	InputLine 										; read line.
-     592/     1E8 : 3D                  		rst 	Evaluate 										; evaluate, result now in B.
-     593/     1E9 : 46 A8 01            		call 	SaveBInVar 										; save the result
-     594/     1EC : 36 10               		mvi 	l,10h 											; restore HL
-     595/     1EE : 2E 12               		mvi 	h,UpdatePage/256 				
-     596/     1F0 : C7                  		mov 	a,m
-     597/     1F1 : 30                  		inr 	l
-     598/     1F2 : F7                  		mov 	l,m
-     599/     1F3 : E8                  		mov 	h,a
-     600/     1F4 : 07                  		ret 													; and exit.
- AS V1.42 Beta [Bld 114] - source file basic.asm - page 11 - 31/12/2016 15:29:20
+     541/     1BB :                     ; ***********************************************************************************************
+     542/     1BB :                     ;
+     543/     1BB :                     ;										Report Syntax Error
+     544/     1BB :                     ;
+     545/     1BB :                     ; ***********************************************************************************************
+     546/     1BB :                     
+     547/     1BB :                     SyntaxError: 													; (S)yntax error
+     548/     1BB : 16 53               		mvi 	c,'S'
+     549/     1BD : 44 32 01            		jmp 	Error
+     550/     1C0 :                     
+     551/     1C0 :                     ; ***********************************************************************************************
+     552/     1C0 :                     ;
+     553/     1C0 :                     ;				Set up to save a value in next variable in line. (puts MVI L,nn;RET)
+     554/     1C0 :                     ;
+     555/     1C0 :                     ; ***********************************************************************************************
+     556/     1C0 :                     
+     557/     1C0 :                     SetUpSaveVariable:
+     558/     1C0 : 0D                  		rst 	GetNextCharacter 								; get the character
+     559/     1C1 : 14 5B               		sui 	65+26 											; check if > 'Z'.
+     560/     1C3 : 50 DB 01            		jp 		__SUSError
+     561/     1C6 : 04 1A               		adi 	26 												; check if < 'A'
+     562/     1C8 : 70 DB 01            		jm 		__SUSError
+     563/     1CB : DD                  		mov 	d,h 											; save HL.
+     564/     1CC : E6                  		mov 	e,l
+     565/     1CD : 2E 12               		mvi 	h,UpdatePage/256 								; HL points to update page.
+     566/     1CF : 36 00               		mvi 	l,0
+     567/     1D1 : 3E 36               		mvi 	m,036h 											; MVI L command
+     568/     1D3 : 30                  		inr 	l
+     569/     1D4 : F8                  		mov 	m,a 											; address to load into L
+     570/     1D5 : 30                  		inr 	l
+     571/     1D6 : 3E 07               		mvi 	m,7 											; RET
+     572/     1D8 : EB                  		mov 	h,d 											; restore HL
+     573/     1D9 : F4                  		mov 	l,e
+     574/     1DA : 07                  		ret
+     575/     1DB :                     __SUSError:
+     576/     1DB : 16 56               		mvi 	c,'V' 											; report (V)ariable error.
+     577/     1DD : 44 32 01            		jmp 	Error
+     578/     1E0 :                     
+     579/     1E0 :                     ; ***********************************************************************************************
+     580/     1E0 :                     ; ***********************************************************************************************
+     581/     1E0 :                     ;
+     582/     1E0 :                     ;											fetch <variable>
+     583/     1E0 :                     ;
+     584/     1E0 :                     ; ***********************************************************************************************
+     585/     1E0 :                     ; ***********************************************************************************************
+     586/     1E0 :                     
+     587/     1E0 :                     Command_Fetch:
+     588/     1E0 : 46 C0 01            		call 	SetUpSaveVariable 								; get ready to set up.
+     589/     1E3 : DD                  		mov 	d,h 											; save HL in DE
+     590/     1E4 : E6                  		mov 	e,l
+     591/     1E5 : 2E 12               		mvi 	h,UpdatePage/256 								; save HL in update page
+     592/     1E7 : 36 10               		mvi 	l,10h
+     593/     1E9 : FB                  		mov 	m,d
+     594/     1EA : 30                  		inr 	l
+     595/     1EB : FC                  		mov 	m,e
+     596/     1EC : 0E 3F               		mvi 	b,'?'											; prompt
+     597/     1EE : 15                  		rst 	PrintCharacter
+     598/     1EF : 1D                  		rst 	InputLine 										; read line.
+     599/     1F0 : 3D                  		rst 	Evaluate 										; evaluate, result now in B.
+     600/     1F1 : 46 B0 01            		call 	SaveBInVar 										; save the result
+ AS V1.42 Beta [Bld 114] - source file basic.asm - page 11 - 31/12/2016 16:34:56
 
 
-     601/     1F5 :                     
-     602/     1F5 :                     ; ***********************************************************************************************
-     603/     1F5 :                     ; ***********************************************************************************************
-     604/     1F5 :                     ;
-     605/     1F5 :                     ;										key <variable>
-     606/     1F5 :                     ;
-     607/     1F5 :                     ; ***********************************************************************************************
-     608/     1F5 :                     ; ***********************************************************************************************
-     609/     1F5 :                     
-     610/     1F5 :                     COMMAND_Key:
-     611/     1F5 : 46 B8 01            		call 	SetUpSaveVariable 								; get ready to set up.
-     612/     1F8 :                     __CK_Get:		
-     613/     1F8 : 41                  		in 		0 												; read keyboard
-     614/     1F9 : B0                  		ora 	a
-     615/     1FA : 68 F8 01            		jz 		__CK_Get 										; loop if no key
-     616/     1FD : C8                  		mov 	b,a 											; put B in A
-     617/     1FE : 46 A8 01            		call 	SaveBInVar 										; save code
-     618/     201 : 07                  		ret
-     619/     202 :                     
-     620/     202 :                     ; ***********************************************************************************************
-     621/     202 :                     ; ***********************************************************************************************
-     622/     202 :                     ;
-     623/     202 :                     ;								print <variable> "<string>" ; 
-     624/     202 :                     ;
-     625/     202 :                     ; ***********************************************************************************************
-     626/     202 :                     ; ***********************************************************************************************
-     627/     202 :                     
-     628/     202 :                     Command_Print:
-     629/     202 : 0D                  		rst 	GetNextCharacter 								; get character
-     630/     203 : 3C 22               		cpi 	'"' 											; if " then it is a string.
-     631/     205 : 68 25 02            		jz 		__CP_String 									
-     632/     208 : B0                  		ora 	a 												; if zero then command ends.
-     633/     209 : 68 20 02            		jz 		__CP_EndPrint
-     634/     20C : 3C 3A               		cpi 	':'												; if colon, then command ends.
-     635/     20E : 68 20 02            		jz 		__CP_EndPrint
-     636/     211 : 3C 3B               		cpi 	';' 											; if not semicolon then expression
-     637/     213 : 48 35 02            		jnz 	__CP_Expression
-     638/     216 :                     ;
-     639/     216 :                     ;		Found a semicolon so if followed by : or NULL, exit without newline
-     640/     216 :                     ;
-     641/     216 : 0D                  		rst 	GetNextCharacter 								; semicolon found, get next char and undo incr
-     642/     217 : 31                  		dcr 	l
-     643/     218 : B0                  		ora 	a 												; if end of command exit.
-     644/     219 : 2B                  		rz 
-     645/     21A : 3C 3A               		cpi 	':' 											; which is either end of line or semicolon.
-     646/     21C : 2B                  		rz
-     647/     21D : 44 02 02            		jmp 	Command_Print 									; no, go and print again.
-     648/     220 :                     ;
-     649/     220 :                     ;		Found colon or NULL, so exit with newline
-     650/     220 :                     ;
-     651/     220 :                     __CP_EndPrint: 													; end of command
-     652/     220 : 31                  		dcr 	l 												; undo the get.
-     653/     221 :                     __CP_CRAndExit:		
-     654/     221 : 0E 0D               		mvi 	b,13 											; print CR
-     655/     223 : 15                  		rst 	PrintCharacter
-     656/     224 : 07                  		ret 													; and exit.
-     657/     225 :                     ;
-     658/     225 :                     ;		Quoted String
-     659/     225 :                     ;
-     660/     225 :                     __CP_String:
- AS V1.42 Beta [Bld 114] - source file basic.asm - page 12 - 31/12/2016 15:29:20
+     601/     1F4 : 36 10               		mvi 	l,10h 											; restore HL
+     602/     1F6 : 2E 12               		mvi 	h,UpdatePage/256 				
+     603/     1F8 : C7                  		mov 	a,m
+     604/     1F9 : 30                  		inr 	l
+     605/     1FA : F7                  		mov 	l,m
+     606/     1FB : E8                  		mov 	h,a
+     607/     1FC : 07                  		ret 													; and exit.
+     608/     1FD :                     
+     609/     1FD :                     ; ***********************************************************************************************
+     610/     1FD :                     ; ***********************************************************************************************
+     611/     1FD :                     ;
+     612/     1FD :                     ;										key <variable>
+     613/     1FD :                     ;
+     614/     1FD :                     ; ***********************************************************************************************
+     615/     1FD :                     ; ***********************************************************************************************
+     616/     1FD :                     
+     617/     1FD :                     COMMAND_Key:
+     618/     1FD : 46 C0 01            		call 	SetUpSaveVariable 								; get ready to set up.
+     619/     200 :                     __CK_Get:		
+     620/     200 : 41                  		in 		0 												; read keyboard
+     621/     201 : B0                  		ora 	a
+     622/     202 : 68 00 02            		jz 		__CK_Get 										; loop if no key
+     623/     205 : C8                  		mov 	b,a 											; put B in A
+     624/     206 : 46 B0 01            		call 	SaveBInVar 										; save code
+     625/     209 : 07                  		ret
+     626/     20A :                     
+     627/     20A :                     ; ***********************************************************************************************
+     628/     20A :                     ; ***********************************************************************************************
+     629/     20A :                     ;
+     630/     20A :                     ;								print <variable> "<string>" ; 
+     631/     20A :                     ;
+     632/     20A :                     ; ***********************************************************************************************
+     633/     20A :                     ; ***********************************************************************************************
+     634/     20A :                     
+     635/     20A :                     Command_Print:
+     636/     20A : 0D                  		rst 	GetNextCharacter 								; get character
+     637/     20B : 3C 22               		cpi 	'"' 											; if " then it is a string.
+     638/     20D : 68 2D 02            		jz 		__CP_String 									
+     639/     210 : B0                  		ora 	a 												; if zero then command ends.
+     640/     211 : 68 28 02            		jz 		__CP_EndPrint
+     641/     214 : 3C 3A               		cpi 	':'												; if colon, then command ends.
+     642/     216 : 68 28 02            		jz 		__CP_EndPrint
+     643/     219 : 3C 3B               		cpi 	';' 											; if not semicolon then expression
+     644/     21B : 48 3D 02            		jnz 	__CP_Expression
+     645/     21E :                     ;
+     646/     21E :                     ;		Found a semicolon so if followed by : or NULL, exit without newline
+     647/     21E :                     ;
+     648/     21E : 0D                  		rst 	GetNextCharacter 								; semicolon found, get next char and undo incr
+     649/     21F : 31                  		dcr 	l
+     650/     220 : B0                  		ora 	a 												; if end of command exit.
+     651/     221 : 2B                  		rz 
+     652/     222 : 3C 3A               		cpi 	':' 											; which is either end of line or semicolon.
+     653/     224 : 2B                  		rz
+     654/     225 : 44 0A 02            		jmp 	Command_Print 									; no, go and print again.
+     655/     228 :                     ;
+     656/     228 :                     ;		Found colon or NULL, so exit with newline
+     657/     228 :                     ;
+     658/     228 :                     __CP_EndPrint: 													; end of command
+     659/     228 : 31                  		dcr 	l 												; undo the get.
+     660/     229 :                     __CP_CRAndExit:		
+ AS V1.42 Beta [Bld 114] - source file basic.asm - page 12 - 31/12/2016 16:34:56
 
 
-     661/     225 : C7                  		mov 	a,m 											; read next characted, not skipping spaces.
-     662/     226 : B0                  		ora 	a 
-     663/     227 : 68 21 02            		jz 		__CP_CRAndExit 									; end of line, print CR and exit.
-     664/     22A : 30                  		inr 	l 												; advance pointer 
-     665/     22B : 3C 22               		cpi 	'"'												; if closing quote start again
-     666/     22D : 68 02 02            		jz 		Command_Print 
-     667/     230 : C8                  		mov 	b,a 											; otherwise print and loop
-     668/     231 : 15                  		rst 	PrintCharacter
-     669/     232 : 44 25 02            		jmp 	__CP_String
-     670/     235 :                     ;
-     671/     235 :                     ;		Numerical expression.
-     672/     235 :                     ;		
-     673/     235 :                     __CP_Expression:
-     674/     235 : 31                  		dcr 	l 												; start of expression
-     675/     236 : 0E 20               		mvi 	b,' '											; print a space
-     676/     238 : 15                  		rst 	PrintCharacter
-     677/     239 : 3D                  		rst 	Evaluate 										; get expression
-     678/     23A : D9                  		mov 	d,b 											; move value into D
-     679/     23B : 46 C3 00            		call 	PrintInteger 									; print it
-     680/     23E : 44 02 02            		jmp 	COMMAND_Print 									; and loop back.
-     681/     241 :                     
-     682/     241 :                     ; ***********************************************************************************************
-     683/     241 :                     ; ***********************************************************************************************
-     684/     241 :                     ;
-     685/     241 :                     ;										new : erase program completely
-     686/     241 :                     ;
-     687/     241 :                     ; ***********************************************************************************************
-     688/     241 :                     ; ***********************************************************************************************
-     689/     241 :                     
-     690/     241 :                     COMMAND_New:
-     691/     241 : 2E E0               		mvi 	h,ProgramMemory/256+0C0h 						; address has 2 MSB sets for zero check.
-     692/     243 : A8                  		xra 	a 												; zero A and L
-     693/     244 : F0                  		mov 	l,a
-     694/     245 :                     __CN_Loop: 														; fill memory with zeros.
-     695/     245 : F8                  		mov 	m,a
-     696/     246 : 30                  		inr 	l
-     697/     247 : 48 45 02            		jnz 	__CN_Loop
-     698/     24A : 28                  		inr 	h
-     699/     24B : 48 45 02            		jnz 	__CN_Loop
-     700/     24E : 46 00 04            		call 	400h 											; this autoloads a program.
-     701/     251 : 05                  		rst   	NextCommand
-     702/     252 :                     
-     703/     252 :                     
-     704/     252 :                     ; ***********************************************************************************************
-     705/     252 :                     ; ***********************************************************************************************
-     706/     252 :                     ;
-     707/     252 :                     ;		This code is not part of the interpreter, it just quick-loads a program in to save
-     708/     252 :                     ; 		typing it in :)
-     709/     252 :                     ;
-     710/     252 :                     ; ***********************************************************************************************
-     711/     252 :                     ; ***********************************************************************************************
-     712/     252 :                     
-     713/     400 :                     		org 	400h
-     714/     400 :                     
-     715/     400 : 16 00               		mvi 	c,lcode & 255 									; BC = loading code.
-     716/     402 : 0E 05               		mvi 	b,lcode / 256
-     717/     404 :                     __LC_Loop:
-     718/     404 : F2                  		mov 	l,c 											; look at next character
-     719/     405 : E9                  		mov 	h,b
-     720/     406 : C7                  		mov 	a,m 											; exit if zero.
- AS V1.42 Beta [Bld 114] - source file basic.asm - page 13 - 31/12/2016 15:29:20
+     661/     229 : 0E 0D               		mvi 	b,13 											; print CR
+     662/     22B : 15                  		rst 	PrintCharacter
+     663/     22C : 07                  		ret 													; and exit.
+     664/     22D :                     ;
+     665/     22D :                     ;		Quoted String
+     666/     22D :                     ;
+     667/     22D :                     __CP_String:
+     668/     22D : C7                  		mov 	a,m 											; read next characted, not skipping spaces.
+     669/     22E : B0                  		ora 	a 
+     670/     22F : 68 29 02            		jz 		__CP_CRAndExit 									; end of line, print CR and exit.
+     671/     232 : 30                  		inr 	l 												; advance pointer 
+     672/     233 : 3C 22               		cpi 	'"'												; if closing quote start again
+     673/     235 : 68 0A 02            		jz 		Command_Print 
+     674/     238 : C8                  		mov 	b,a 											; otherwise print and loop
+     675/     239 : 15                  		rst 	PrintCharacter
+     676/     23A : 44 2D 02            		jmp 	__CP_String
+     677/     23D :                     ;
+     678/     23D :                     ;		Numerical expression.
+     679/     23D :                     ;		
+     680/     23D :                     __CP_Expression:
+     681/     23D : 31                  		dcr 	l 												; start of expression
+     682/     23E : 0E 20               		mvi 	b,' '											; print a space
+     683/     240 : 15                  		rst 	PrintCharacter
+     684/     241 : 3D                  		rst 	Evaluate 										; get expression
+     685/     242 : D9                  		mov 	d,b 											; move value into D
+     686/     243 : 46 C6 00            		call 	PrintInteger 									; print it
+     687/     246 : 44 0A 02            		jmp 	COMMAND_Print 									; and loop back.
+     688/     249 :                     
+     689/     249 :                     ; ***********************************************************************************************
+     690/     249 :                     ; ***********************************************************************************************
+     691/     249 :                     ;
+     692/     249 :                     ;									if <expr><compare><expr>
+     693/     249 :                     ;
+     694/     249 :                     ; ***********************************************************************************************
+     695/     249 :                     ; ***********************************************************************************************
+     696/     249 :                     
+     697/     249 :                     COMMAND_If:
+     698/     249 : 3D                  		rst 	Evaluate 										; evaluate left expression into B
+     699/     24A : 0D                  		rst 	GetNextCharacter 								; get comparison character.
+     700/     24B : 16 FF               		mvi 	c,-1 											; C will be -1,0,1 depending on character
+     701/     24D : 3C 3C               		cpi 	'<'
+     702/     24F : 68 5E 02            		jz 		__CI_FoundCompare
+     703/     252 : 10                  		inr 	c
+     704/     253 : 3C 3D               		cpi 	'='
+     705/     255 : 68 5E 02            		jz 		__CI_FoundCompare
+     706/     258 : 10                  		inr 	c
+     707/     259 : 3C 3E               		cpi 	'>'
+     708/     25B : 48 BB 01            		jnz 	SyntaxError 									; wasn't < = > so SN error.
+     709/     25E :                     
+     710/     25E :                     __CI_FoundCompare:												; B left expr C -1 0 1 for < = >
+     711/     25E : DD                  		mov 	d,h 											; save HL in DE
+     712/     25F : E6                  		mov 	e,l
+     713/     260 : 2E 12               		mvi 	h,UpdatePage/256 								; set HL to point to write area
+     714/     262 : F5                  		mov 	l,h
+     715/     263 : FA                  		mov 	m,c 											; save comparator
+     716/     264 : 30                  		inr 	l
+     717/     265 : F9                  		mov 	m,b 											; save LHExpr
+     718/     266 : EB                  		mov 	h,d 											; copy DE to HL
+     719/     267 : F4                  		mov 	l,e
+     720/     268 : 3D                  		rst 	Evaluate 										; get the right hand side.
+ AS V1.42 Beta [Bld 114] - source file basic.asm - page 13 - 31/12/2016 16:34:56
 
 
-     721/     407 : B0                  		ora 	a 
-     722/     408 : 2B                  		rz
-     723/     409 : 10                  		inr 	c 												; skip over line number
-     724/     40A : 46 63 00            		call 	__LineNumberToDE								; DE is where it goes.
-     725/     40D :                     __LC_Copy:
-     726/     40D : F2                  		mov 	l,c 											; read (BC) and bump C
-     727/     40E : E9                  		mov 	h,b
-     728/     40F : C7                  		mov 	a,m		
-     729/     410 : 10                  		inr 	c
-     730/     411 : F4                  		mov 	l,e 											; write to (DE) and bump E
-     731/     412 : EB                  		mov 	h,d
-     732/     413 : F8                  		mov 	m,a 
-     733/     414 : 20                  		inr 	e
-     734/     415 : B0                  		ora 	a 												; copy whole line.
-     735/     416 : 48 0D 04            		jnz 	__LC_Copy
-     736/     419 : 44 04 04            		jmp 	__LC_Loop 										; next line.
-     737/     41C :                     
-     738/     500 :                     		org 	500h
-     739/     500 : 0A 6C 65 74 20 41   lcode:	db 		10,"let A=42",0
-                    3D 34 32 00 
-     740/     50A : 14 70 72 69 6E 74   		db 		20,"print A,A",0
-                    20 41 2C 41 00 
-     741/     515 : 1E 73 74 6F 70 00   		db 		30,"stop",0
-     742/     51B : 64 70 72 69 6E 74   		db 		100,"print \"fred\"",0
-                    20 22 66 72 65 64 
-                    22 00 
-     743/     529 : 6E 72 65 74 75 72   		db 		110,"return",0
-                    6E 00 
-     744/     531 :                     
-     745/     531 : 00                  		db 		0
- AS V1.42 Beta [Bld 114] - source file basic.asm - page 14 - 31/12/2016 15:29:20
+     721/     269 :                     
+     722/     269 : DD                  		mov 	d,h 											; save HL in DE
+     723/     26A : E6                  		mov 	e,l 													
+     724/     26B : 2E 12               		mvi 	h,UpdatePage/256 								; set HL to point to write area
+     725/     26D : F5                  		mov 	l,h
+     726/     26E : D7                  		mov 	c,m 											; read comparator into C
+     727/     26F : 30                  		inr 	l
+     728/     270 : C7                  		mov 	a,m 											; read left
+     729/     271 : 91                  		sub 	b 												; subtract right
+     730/     272 : 68 7B 02            		jz 		__CI_TestOver 									; if equal, if comparator zero its okay.
+     731/     275 : 11                  		dcr 	c
+     732/     276 : 40 7B 02            		jnc 	__CI_TestOver
+     733/     279 : 10                  		inr 	c
+     734/     27A : 10                  		inr 	c
+     735/     27B :                     __CI_TestOver: 													; DE is code, if C is zero test passed.
+     736/     27B : F4                  		mov 	l,e 											; put DE into HL
+     737/     27C : EB                  		mov 	h,d
+     738/     27D : C2                  		mov 	a,c 											; check if test passed.
+     739/     27E : B0                  		ora 	a
+     740/     27F : 68 DF 00            		jz 		CommandExecute 									; if so, then execute the command
+     741/     282 :                     __CI_EndLine:
+     742/     282 : C7                  		mov 	a,m 											; else skip to end of line.
+     743/     283 : B0                  		ora 	a
+     744/     284 : 68 DF 00            		jz 		CommandExecute
+     745/     287 : 30                  		inr 	l
+     746/     288 : 44 82 02            		jmp 	__CI_EndLine
+     747/     28B :                     
+     748/     28B :                     ; ***********************************************************************************************
+     749/     28B :                     ; ***********************************************************************************************
+     750/     28B :                     ;
+     751/     28B :                     ;										new : erase program completely
+     752/     28B :                     ;
+     753/     28B :                     ; ***********************************************************************************************
+     754/     28B :                     ; ***********************************************************************************************
+     755/     28B :                     
+     756/     28B :                     COMMAND_New:
+     757/     28B : 2E E0               		mvi 	h,ProgramMemory/256+0C0h 						; address has 2 MSB sets for zero check.
+     758/     28D : A8                  		xra 	a 												; zero A and L
+     759/     28E : F0                  		mov 	l,a
+     760/     28F :                     __CN_Loop: 														; fill memory with zeros.
+     761/     28F : F8                  		mov 	m,a
+     762/     290 : 30                  		inr 	l
+     763/     291 : 48 8F 02            		jnz 	__CN_Loop
+     764/     294 : 28                  		inr 	h
+     765/     295 : 48 8F 02            		jnz 	__CN_Loop
+     766/     298 : 46 00 04            		call 	400h 											; this autoloads a program.
+     767/     29B : 05                  		rst   	NextCommand
+     768/     29C :                     
+     769/     29C :                     
+     770/     29C :                     ; ***********************************************************************************************
+     771/     29C :                     ; ***********************************************************************************************
+     772/     29C :                     ;
+     773/     29C :                     ;		This code is not part of the interpreter, it just quick-loads a program in to save
+     774/     29C :                     ; 		typing it in :)
+     775/     29C :                     ;
+     776/     29C :                     ; ***********************************************************************************************
+     777/     29C :                     ; ***********************************************************************************************
+     778/     29C :                     
+     779/     400 :                     		org 	400h
+     780/     400 :                     
+ AS V1.42 Beta [Bld 114] - source file basic.asm - page 14 - 31/12/2016 16:34:56
+
+
+     781/     400 : 16 00               		mvi 	c,lcode & 255 									; BC = loading code.
+     782/     402 : 0E 05               		mvi 	b,lcode / 256
+     783/     404 :                     __LC_Loop:
+     784/     404 : F2                  		mov 	l,c 											; look at next character
+     785/     405 : E9                  		mov 	h,b
+     786/     406 : C7                  		mov 	a,m 											; exit if zero.
+     787/     407 : B0                  		ora 	a 
+     788/     408 : 2B                  		rz
+     789/     409 : 10                  		inr 	c 												; skip over line number
+     790/     40A : 46 61 00            		call 	__LineNumberToDE								; DE is where it goes.
+     791/     40D :                     __LC_Copy:
+     792/     40D : F2                  		mov 	l,c 											; read (BC) and bump C
+     793/     40E : E9                  		mov 	h,b
+     794/     40F : C7                  		mov 	a,m		
+     795/     410 : 10                  		inr 	c
+     796/     411 : F4                  		mov 	l,e 											; write to (DE) and bump E
+     797/     412 : EB                  		mov 	h,d
+     798/     413 : F8                  		mov 	m,a 
+     799/     414 : 20                  		inr 	e
+     800/     415 : B0                  		ora 	a 												; copy whole line.
+     801/     416 : 48 0D 04            		jnz 	__LC_Copy
+     802/     419 : 44 04 04            		jmp 	__LC_Loop 										; next line.
+     803/     41C :                     
+     804/     500 :                     		org 	500h
+     805/     500 : 0A 6C 65 74 20 41   lcode:	db 		10,"let A=1",0
+                    3D 31 00 
+     806/     509 : 14 69 66 20 41 2E   		db 		20,"if A.1=0 print A;\" even\" ",0
+                    31 3D 30 20 70 72 
+                    69 6E 74 20 41 3B 
+                    22 20 65 76 65 6E 
+                    22 20 00 
+     807/     524 : 1E 69 66 20 41 2E   		db 		30,"if A.1=1 print A;\" odd\" ",0
+                    31 3D 31 20 70 72 
+                    69 6E 74 20 41 3B 
+                    22 20 6F 64 64 22 
+                    20 00 
+     808/     53E : 28 6C 65 74 20 41   		db 		40,"let A=A+1",0
+                    3D 41 2B 31 00 
+     809/     549 : 32 69 66 20 41 3C   		db 		50,"if A<20 goto 20",0
+                    32 30 20 67 6F 74 
+                    6F 20 32 30 00 
+     810/     55A : 3C 70 72 69 6E 74   		db 		60,"print \"done\" ",0
+                    20 22 64 6F 6E 65 
+                    22 20 00 
+     811/     569 : 00                  		db 		0
+     812/     56A :                     
+     813/     56A :                     
+ AS V1.42 Beta [Bld 114] - source file basic.asm - page 15 - 31/12/2016 16:34:56
 
 
   symbol table (* = unused):
@@ -796,15 +876,15 @@
  ADDDIGIT :                      3D C |
 *ARCHITECTURE :                                        x86_64-unknown-linux - |
 *BIGENDIAN :                      0 - | *BRANCHEXT :                      0 - |
-*CASESENSITIVE :                  0 - |  COMMANDEXECUTE :                DC C |
- COMMAND_EXECUTE :              181 C |  COMMAND_GOTO :                 195 C |
- COMMAND_INPUT :                1D8 C |  COMMAND_KEY :                  1F5 C |
- COMMAND_LET :                  19E C |  COMMAND_NEW :                  241 C |
- COMMAND_OUT :                  17A C |  COMMAND_PRINT :                202 C |
- COMMAND_STOP :                 194 C |  COMMAND_VIEW :                 148 C |
-*CONSTPI :        3.141592653589793 - | *DATE :                  31/12/2016 - |
- ERROR :                        12A C |  EVALUATE :                      38 C |
- EXITEVALUATE1 :                 60 C | *FALSE :                          0 - |
+*CASESENSITIVE :                  0 - |  COMMANDEXECUTE :                DF C |
+ COMMAND_EXECUTE :              189 C |  COMMAND_FETCH :                1E0 C |
+ COMMAND_GOTO :                 19D C |  COMMAND_IF :                   249 C |
+ COMMAND_KEY :                  1FD C |  COMMAND_LET :                  1A6 C |
+ COMMAND_NEW :                  28B C |  COMMAND_OUT :                  182 C |
+ COMMAND_PRINT :                20A C |  COMMAND_STOP :                 19C C |
+ COMMAND_VIEW :                 150 C | *CONSTPI :        3.141592653589793 - |
+*DATE :                  31/12/2016 - |  ERROR :                        132 C |
+ EVALUATE :                      38 C | *FALSE :                          0 - |
 *FULLPMMU :                       1 - |  GETNEXTCHARACTER :               8 C |
 *HAS64 :                          1 - | *HASDSP :                         0 - |
 *HASFPU :                         0 - | *HASPMMU :                        0 - |
@@ -815,34 +895,37 @@
 *LISTON :                         1 - | *MACEXP :                         1 - |
 *MOMCPU :                     8008E - | *MOMCPUNAME :               8008NEW - |
 *NESTMAX :                      100 - |  NEXTCHARACTER :                 45 C |
- NEXTCOMMAND :                    0 C |  NEXTLINE :                     16D C |
+ NEXTCOMMAND :                    0 C |  NEXTLINE :                     175 C |
 *PACKING :                        0 - | *PADDING :                        1 - |
- PRINTCHARACTER :                10 C |  PRINTINTEGER :                  C3 C |
- PRINTLINENUMBER :               B2 C |  PROGRAMLINE :                  136 C |
+ PRINTCHARACTER :                10 C |  PRINTINTEGER :                  C6 C |
+ PRINTLINENUMBER :               B5 C |  PROGRAMLINE :                  13E C |
  PROGRAMMEMORY :               2000 - | *RELAXED :                        0 - |
- SAVEBINVAR :                   1A8 C |  SETUPSAVEVARIABLE :            1B8 C |
- SUBEVALUATOR :                  87 C |  SYNTAXERROR :                  1B3 C |
-*TIME :                    15:29:20 - | *TRUE :                           1 - |
+ SAVEBINVAR :                   1B0 C |  SETUPSAVEVARIABLE :            1C0 C |
+ SUBEVALUATOR :                  8A C |  SYNTAXERROR :                  1BB C |
+*TIME :                    16:34:56 - | *TRUE :                           1 - |
  UPDATEPAGE :                  1200 - |  VARIABLEPAGE :                1000 - |
-*VERSION :                     142F - |  __CEXECONE :                    FB C |
- __CK_GET :                     1F8 C |  __CLNEXTCHARACTERINPUT :        20 C |
- __CLPREVIOUSCHARACTER :         1C C |  __CLSTARTLINE :                 1A C |
- __CL_LOOP :                    14D C |  __CL_NEXT :                    166 C |
- __CL_PRINT :                   157 C |  __CN_LOOP :                    245 C |
- __CP_CRANDEXIT :               221 C |  __CP_ENDPRINT :                220 C |
- __CP_EXPRESSION :              235 C |  __CP_STRING :                  225 C |
- __CR_LOOP :                    185 C |  __ISVARIABLE :                  72 C |
+*VERSION :                     142F - |  __CEXECONE :                   103 C |
+ __CI_ENDLINE :                 282 C |  __CI_FOUNDCOMPARE :            25E C |
+ __CI_TESTOVER :                27B C |  __CK_GET :                     200 C |
+ __CLNEXTCHARACTERINPUT :        20 C |  __CLPREVIOUSCHARACTER :         1C C |
+ __CLSTARTLINE :                 1A C |  __CL_LOOP :                    155 C |
+ __CL_NEXT :                    16E C |  __CL_PRINT :                   15F C |
+ __CN_LOOP :                    28F C |  __CP_CRANDEXIT :               229 C |
+ __CP_ENDPRINT :                228 C |  __CP_EXPRESSION :              23D C |
+ __CP_STRING :                  22D C |  __CR_LOOP :                    18D C |
+ __ENTERCALC :                   52 C |  __ISVARIABLE :                  75 C |
  __LC_COPY :                    40D C |  __LC_LOOP :                    404 C |
- __LINENUMBERTODE :              63 C |  __PIDIVIDE :                    C8 C |
- __PILOOP :                      C5 C |  __PLCOPY :                     13A C |
- __SEDIVIDE :                    A0 C |  __SEDIVIDE1 :                   A4 C |
- __SEMULTIPLY :                  AB C |  __SEMULTIPLY1 :                 AC C |
- __SKIPOVERKEYWORD :             E4 C |  __SUSERROR :                   1D3 C |
+ __LINENUMBERTODE :              61 C |  __PIDIVIDE :                    CB C |
+ __PILOOP :                      C8 C |  __PLCOPY :                     142 C |
+ __REENTERCALC :                 70 C |  __SEDIVIDE :                    A3 C |
+ __SEDIVIDE1 :                   A7 C |  __SEMULTIPLY :                  AE C |
+ __SEMULTIPLY1 :                 AF C |  __SKIPOVERKEYWORD :             E7 C |
+ __SUSERROR :                   1DB C |
 
-     88 symbols
+     93 symbols
      28 unused symbols
 
- AS V1.42 Beta [Bld 114] - source file basic.asm - page 15 - 31/12/2016 15:29:20
+ AS V1.42 Beta [Bld 114] - source file basic.asm - page 16 - 31/12/2016 16:34:56
 
 
   codepages:
@@ -851,9 +934,9 @@
 STANDARD (0 changed characters)
 
 
-0.01 seconds assembly time
+0.00 seconds assembly time
 
-    745 lines source file
+    813 lines source file
       2 passes
       0 errors
       0 warnings
