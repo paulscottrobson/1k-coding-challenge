@@ -12,20 +12,20 @@
 ;
 ;	goto <expression>					Go to line number.
 ;	input <variable>					Input a number
+;	key <variable>						Input a single keystroke (ASCII value)
 ; 	let <variable> = <expression> 		Assignment.
 ;	new 								Erase current program.
 ;	out <expression> 					Print character <expression> (e.g. out 42 prints '*')
-;	print "<string>";<expression>[;] 	Print to terminal
+;	print "<string>",<expression>[;] 	Print to terminal
 ;	stop 								Stop Program
 ;	view [<start line>] 				List 12 lines of current program.
 ;	xecute  							Run Program (BS breaks into a running program)
 ;
 ;	Coding to do:
-;		if [!]<expr> [command] 
+;
 ;		call <line>
 ;		return
-;		key <variable>
-;		+code to load program memory.
+;		if [!]<expr> [command] 
 ;
 
 VariablePage = 	1000h 											; this page has variables offset from A = 0
@@ -168,6 +168,7 @@ ExitEvaluate1:
 		mov 	b,d 											; put result in B
 		dcr  	l 												; gone too far, go back one.
 		mov 	a,b 											; get result to set up program pointer.
+__LineNumberToDE:		
 		ori 	080h 											; set bit 7 , which will be bit 5 if shift x 2
 		rar 													; also CC for this.
 		mov 	d,a 											; put shifted right once into D
@@ -177,10 +178,9 @@ ExitEvaluate1:
 		mov 	a,d 											; now shift DE right once more.
 		rar
 		mov 	d,a
-		mov 	a,e
-		rar
+		mov 	a,e 											; note :__LineNumberToDE is only used by the program
+		rar 													; loader code.
 		mov		e,a
-
 		ret
 ;
 ;		Variable ? A contains variable char - 58.
@@ -341,6 +341,8 @@ __CExecOne:
 		jz 		COMMAND_Let
 		cpi 	'p'
 		jz 		COMMAND_Print 	
+		cpi 	'k'
+		jz 		COMMAND_Key
 		cpi 	'i'
 		jz 		COMMAND_Input
 		cpi 	'x' 											; these ones are not speed important
@@ -391,26 +393,6 @@ __PLCopy:
 		inr 	c 												; increment two pointers
 		inr 	e 
 		jmp 	__PLCopy 										; jump back and return if zero.
-
-; ***********************************************************************************************
-; ***********************************************************************************************
-;
-;										new : erase program completely
-;
-; ***********************************************************************************************
-; ***********************************************************************************************
-
-COMMAND_New:
-		mvi 	h,ProgramMemory/256+0C0h 						; address has 2 MSB sets for zero check.
-		xra 	a 												; zero A and L
-		mov 	l,a
-__CN_Loop: 														; fill memory with zeros.
-		mov 	m,a
-		inr 	l
-		jnz 	__CN_Loop
-		inr 	h
-		jnz 	__CN_Loop
-		rst   	NextCommand
 
 ; ***********************************************************************************************
 ; ***********************************************************************************************
@@ -588,9 +570,11 @@ __SUSError:
 		jmp 	Error
 
 ; ***********************************************************************************************
+; ***********************************************************************************************
 ;
 ;											input <variable>
 ;
+; ***********************************************************************************************
 ; ***********************************************************************************************
 
 Command_Input:
@@ -616,9 +600,29 @@ Command_Input:
 		ret 													; and exit.
 
 ; ***********************************************************************************************
+; ***********************************************************************************************
+;
+;										key <variable>
+;
+; ***********************************************************************************************
+; ***********************************************************************************************
+
+COMMAND_Key:
+		call 	SetUpSaveVariable 								; get ready to set up.
+__CK_Get:		
+		in 		0 												; read keyboard
+		ora 	a
+		jz 		__CK_Get 										; loop if no key
+		mov 	b,a 											; put B in A
+		call 	SaveBInVar 										; save code
+		ret
+
+; ***********************************************************************************************
+; ***********************************************************************************************
 ;
 ;								print <variable> "<string>" ; 
 ;
+; ***********************************************************************************************
 ; ***********************************************************************************************
 
 Command_Print:
@@ -674,3 +678,68 @@ __CP_Expression:
 		mov 	d,b 											; move value into D
 		call 	PrintInteger 									; print it
 		jmp 	COMMAND_Print 									; and loop back.
+
+; ***********************************************************************************************
+; ***********************************************************************************************
+;
+;										new : erase program completely
+;
+; ***********************************************************************************************
+; ***********************************************************************************************
+
+COMMAND_New:
+		mvi 	h,ProgramMemory/256+0C0h 						; address has 2 MSB sets for zero check.
+		xra 	a 												; zero A and L
+		mov 	l,a
+__CN_Loop: 														; fill memory with zeros.
+		mov 	m,a
+		inr 	l
+		jnz 	__CN_Loop
+		inr 	h
+		jnz 	__CN_Loop
+		call 	400h 											; this autoloads a program.
+		rst   	NextCommand
+
+
+; ***********************************************************************************************
+; ***********************************************************************************************
+;
+;		This code is not part of the interpreter, it just quick-loads a program in to save
+; 		typing it in :)
+;
+; ***********************************************************************************************
+; ***********************************************************************************************
+
+		org 	400h
+
+		mvi 	c,lcode & 255 									; BC = loading code.
+		mvi 	b,lcode / 256
+__LC_Loop:
+		mov 	l,c 											; look at next character
+		mov 	h,b
+		mov 	a,m 											; exit if zero.
+		ora 	a 
+		rz
+		inr 	c 												; skip over line number
+		call 	__LineNumberToDE								; DE is where it goes.
+__LC_Copy:
+		mov 	l,c 											; read (BC) and bump C
+		mov 	h,b
+		mov 	a,m		
+		inr 	c
+		mov 	l,e 											; write to (DE) and bump E
+		mov 	h,d
+		mov 	m,a 
+		inr 	e
+		ora 	a 												; copy whole line.
+		jnz 	__LC_Copy
+		jmp 	__LC_Loop 										; next line.
+
+		org 	500h
+lcode:	db 		10,"let A=42",0
+		db 		20,"print A,A",0
+		db 		30,"stop",0
+		db 		100,"print \"fred\"",0
+		db 		110,"return",0
+
+		db 		0
