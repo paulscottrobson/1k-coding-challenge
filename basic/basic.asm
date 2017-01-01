@@ -1,6 +1,7 @@
 	
-		cpu		8008new
 
+; ***********************************************************************************************
+; ***********************************************************************************************
 ;
 ;	variables A-Z, operators + - * / . (and) , (xor), 1 byte values all.
 ;
@@ -10,6 +11,7 @@
 ;	NOTE: Some commands have been renamed because only the first character matters
 ; 		  so RUN is now XECUTE and LIST is now VIEW
 ;
+;	call <line> 						Call as subroutine
 ;	fetch <variable>					Input a number
 ;	goto <expression>					Go to line number.
 ;	if <expr>[>|<|=]<expr> [command]:.. Conditional execution of command(s)
@@ -18,19 +20,22 @@
 ;	new 								Erase current program.
 ;	out <expression> 					Print character <expression> (e.g. out 42 prints '*')
 ;	print "<string>",<expression>[;] 	Print to terminal
+;	return 								Return from subroutine
 ;	stop 								Stop Program
 ;	view [<start line>] 				List 12 lines of current program.
 ;	xecute  							Run Program (BS breaks into a running program)
 ;
-;	Coding to do:
 ;
-;		call <line>
-;		return
-;
+; ***********************************************************************************************
+; ***********************************************************************************************
+
+		cpu		8008new
 
 VariablePage = 	1000h 											; this page has variables offset from A = 0
 InputPage = 	1100h 											; text input goes here.
 UpdatePage = 	1200h 											; code to do ld (hl),x goes here+misc
+SPPage = 		1300h 											; stack pointer where H==L e.g. $1313
+StackPage = 	1400h 											; 2 pages stack. First = Lo, Second = Hi
 
 ProgramMemory = 2000h 											; 127 program lines go here. 64 bytes each.
 																; line 1 at 2040h, 2 at 2080h etc.
@@ -317,6 +322,8 @@ __PIDivide:
 
 CommandExecute:
 		rst 	GetNextCharacter 								; get character.
+		cpi 	':'												; skip over :
+		jz 		CommandExecute
 		mov 	b,a 											; save in B
 		ral 													; shift left bit 6 into bit 7. basic # test
 		ora 	a 												; check if zero, signed.
@@ -334,6 +341,10 @@ __SkipOverKeyword:
 		jz 		COMMAND_Goto
 		cpi 	'i'
 		jz 		COMMAND_If
+		cpi 	'c'
+		jz 		COMMAND_Call
+		cpi 	'r'
+		jz 		COMMAND_Return
 
 		call 	__CExecOne 										; execute one command.
 		rst 	GetNextCharacter 								; next is :
@@ -493,7 +504,64 @@ COMMAND_Stop:
 ; ***********************************************************************************************
 ; ***********************************************************************************************
 ;
-;										Go to a new line
+;										call <line> subroutine call
+;
+; ***********************************************************************************************
+; ***********************************************************************************************
+
+COMMAND_Call:
+		rst 	Evaluate 										; DE = address, B = line number
+		mov 	a,b 											; if address = 0
+		ora 	a 	
+		jz 		__NextCommand 									; crash out to next command.
+
+		mov 	b,h 											; HL -> BC
+		mov 	c,l
+
+		mvi 	h,SPPage/256 									; HL points to stack pointer.
+		mov 	l,h
+		mov 	a,m 											; read and bump stack pointer
+		adi 	1
+		mov 	m,a
+
+		mov 	l,a 											; make HL point to low byte stack
+		mvi 	h,StackPage/256
+		mov 	m,c 											; save return address
+		inr 	h
+		mov 	m,b 
+
+		mov 	l,e 											; and go to the new address.
+		mov 	h,d
+		jmp 	CommandExecute
+
+; ***********************************************************************************************
+; ***********************************************************************************************
+;
+;									Subroutine Return
+;
+; ***********************************************************************************************
+; ***********************************************************************************************
+
+COMMAND_Return:
+		mvi 	h,SPPage/256 									; HL points to stack pointer.
+		mov 	l,h
+		mov 	d,m 											; read and decrement stack pointer
+		dcr 	d
+		mov 	m,d
+		inr 	d 												; point to old TOS in HL
+		mov 	l,d
+		mvi 	h,StackPage/256
+		mov 	a,m 											; read return address into HL
+		inr 	h
+		mov 	h,m
+		mov 	l,a
+		jmp 	CommandExecute
+
+		
+; ***********************************************************************************************
+; ***********************************************************************************************
+;
+;										goto <line> Go to a new line
 ;
 ; ***********************************************************************************************
 ; ***********************************************************************************************
@@ -505,6 +573,7 @@ COMMAND_Goto:
 		mov 	a,b 											; if number found.
 		ora 	a
 		jnz 	CommandExecute 									; then go there.
+__NextCommand:		
 		rst 	NextCommand 									; goto 0 [stop]
 
 ; ***********************************************************************************************
@@ -802,11 +871,13 @@ __LC_Copy:
 		jmp 	__LC_Loop 										; next line.
 
 		org 	500h
-lcode:	db 		10,"let A=1",0
-		db 		20,"if A.1=0 print A;\" even\" ",0
-		db 		30,"if A.1=1 print A;\" odd\" ",0
-		db 		40,"let A=A+1",0
-		db 		50,"if A<20 goto 20",0
-		db 		60,"print \"done\" ",0
+lcode:	
+		db 		10,"call 60:print 0",0
+		db 		12,"call 60:print 1",0
+		db 		14,"call 60:call 60:call 60",0
+		db 		15,"print \"back\" ",0
+		db 		20,"stop",0
+		db 		60,"print \"code\" ,2",0
+		db 		70,"return",0
 		db 		0
 
